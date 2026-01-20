@@ -9,13 +9,13 @@ Example execution:
         --experiments=use_runner_v2 \
         --max_num_workers=16 \
         --num_workers=8 \
-        --requirements_file ./pipeline_requirements.txt
+       --requirements_file ./pipeline_requirements.txt
 """
 
 import logging
 
-from .geebeam import geebeam
+import geebeam
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)
-    geebeam.run()
+    geebeam.runner.run()
