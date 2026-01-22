@@ -2,7 +2,6 @@
 
 Example execution:
     python geebeam_main.py \
-        --config ./example_config.json \
         --output_path gs://aic-fire-amazon/results/ \
         --region_of_interest ./data/Limites_RAISG_2025/Lim_Raisg.shp \
         --runner DataflowRunner \
@@ -37,28 +36,27 @@ SEED = 54
 RNG = np.random.default_rng(SEED)
 
 
-def parse_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--config",
-        required=True,
-        help="JSON containing configuration dictionary.",
-    )
-    parser.add_argument(
-        "--output_path",
-        required=True,
-        help="Directory to save TFRecord files (local or GCS).",
-    )
-    parser.add_argument(
-        "--region_of_interest",
-        required=True,
-        help="Local geopandas-readable file of region to sample from randomly."
-    )
+def deserialize(obj_json):
+    return ee.deserializer.fromJSON(obj_json)
 
-    # Beam args are leftover after parsing known args
-    args, beam_args = parser.parse_known_args()
-    
-    return args, beam_args
+def serialize(obj_ee):
+    return ee.serializer.toJSON(obj_ee)
+
+def get_band_names(input_list):
+    """Get simplified band_names for output (without prefixed image_id)
+
+    TODO: Add year to distinguish multiple years?
+    """
+    return ee.List([
+        image.bandNames()
+        for image in input_list
+    ]).flatten()
+
+def build_prepped_image(input_list):
+    band_names = get_band_names(input_list)
+
+    # Final prepped image
+    return ee.ImageCollection(input_list).toBands().rename(band_names)
 
 def sample_random_points(roi: gpd.GeoDataFrame, n_sample: int, rng: np.random.Generator)->np.array:
     """Get random points within region of interest."""
@@ -147,22 +145,6 @@ def prepare_run_metadata(config):
 
     return scale_x, scale_y
 
-def get_band_names(config):
-    # Setup Earth Engine image object with all target bands
-    inputs_list = [
-        prep_dict[k](config['target_year']-1)
-        for k in config['inputs_keys']
-    ]
-    outputs_list = [prep_dict[config['target_key']](config['target_year'])]
-    full_list = inputs_list + outputs_list
-    # Get original band names, with system indices prepended (toBands() adds)
-    band_names = [
-        bn 
-        for image in full_list
-        for bn in image.bandNames().getInfo()
-    ]
-    return band_names
-
 class EEComputePatch(beam.DoFn):
     """DoFn() for computing EE patch
     
@@ -176,14 +158,9 @@ class EEComputePatch(beam.DoFn):
             inputs_keys (list): Names of input data, correspond to keys in self.prep_dict
             proj (str): Projection, e.g. "EPSG:4326"
     """
-    def __init__(self, config, scale_x, scale_y):
+    def __init__(self, config, serialized_image, scale_x, scale_y):
         self.config = config
-        self.prep_dict = {
-            'embeddings': self._prep_embeddings,
-            'mcd64': self._prep_mcd64,
-            'mb_fire': self._prep_mb_burned_area
-
-        }
+        self.serialized_image = serialized_image
         self.scale_x = scale_x
         self.scale_y = scale_y
 
@@ -194,34 +171,15 @@ class EEComputePatch(beam.DoFn):
                       opt_url='https://earthengine-highvolume.googleapis.com')
         logging.warning("EE setup: finished")
 
-    def build_prepped_image(self):
-        # Set some params
-        self.proj = ee.Projection(self.config['proj']).atScale(self.config['scale'])
-
-        # Setup Earth Engine image object with all target bands
-        inputs_list = [
-            self.prep_dict[k](self.config['target_year']-1)
-            for k in self.config['inputs_keys']
-        ]
-        outputs_list = [self.prep_dict[self.config['target_key']](self.config['target_year'])]
-        full_list = inputs_list + outputs_list
-
-        # Get simplified band_names for output (without prefixed image_id)
-        # TODO: Add year to distinguish multiple years?
-        band_names = ee.List([
-            image.bandNames()
-            for image in full_list
-        ]).flatten()
-
-        # Final prepped image
-        return ee.ImageCollection(full_list).toBands().rename(band_names)
+    def deserialize(self, obj_json):
+        return ee.deserializer.fromJSON(obj_json)
 
     @retry.Retry(tries=5, delay=1, backoff=2)
     def process(self, point):
         """Compute a patch of pixel, with upper-left corner defined by the coords."""
         t0 = time.time()
         logging.warning(f"EE start {point['id']}")
-        prepped_image = self.build_prepped_image()
+        prepped_image = self.deserialize(self.serialized_image)
 
         # Make a request object.
         request = {
@@ -263,38 +221,6 @@ class EEComputePatch(beam.DoFn):
         out_dict['array'] = arr
         yield out_dict
 
-    def _prep_embeddings(self, year):
-        return (
-            ee.ImageCollection('GOOGLE/SATELLITE_EMBEDDING/V1/ANNUAL')
-            .filter(ee.Filter.calendarRange(year, year, 'year'))
-            .mosaic()
-            .setDefaultProjection(self.proj)
-            .reduceResolution('mean', maxPixels=500)
-            )
-
-    def _prep_mcd64(self, year):
-        return (
-            ee.ImageCollection('MODIS/061/MCD64A1')
-            .select('BurnDate')
-            .filter(ee.Filter.calendarRange(year, year, 'year'))
-            .min()
-            )
-
-    def _prep_mb_burned_area(self, year):
-        return (
-            ee.Image('projects/mapbiomas-public/assets/brazil/fire/collection4_1/mapbiomas_fire_collection41_annual_burned_v1')
-            .select(['burned_area_{}'.format(year)])
-            .reduceResolution('mean', maxPixels=500)
-            )
-
-    def _prep_default(self, year):
-        """Example prep method"""
-        return (
-            ee.ImageCollection()
-            .mean()
-            .reduceResolution('mean', maxPixels=500)
-            )
-
 class WriteTFExample(beam.PTransform):
     """Write example"""
     def __init__(self, output_dir, file_name_suffix='.tfrecord.gz'):
@@ -310,31 +236,41 @@ class WriteTFExample(beam.PTransform):
             )
         )
 
-def run():
+def run(config, input_list):
     import logging
 
     logging.getLogger().setLevel(logging.INFO)
 
-    args, beam_args = parse_args()
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--output_path",
+        required=True,
+        help="Directory to save TFRecord files (local or GCS).",
+    )
+    parser.add_argument(
+        "--region_of_interest",
+        required=True,
+        help="Local geopandas-readable file of region to sample from randomly."
+    )
 
-    with open(args.config, 'r') as file:
-        config_dict = json.loads(file.read())
+    # Beam args are leftover after parsing known args
+    args, beam_args = parser.parse_known_args()
 
     # Randomly sample points
     roi = gpd.read_file(args.region_of_interest)
-    sample_points  = sample_random_points(roi, config_dict['n_sample'], RNG)
+    sample_points  = sample_random_points(roi, config['n_sample'], RNG)
      
     # Convert to dataframe with some metadata attached (including split)
     input_records = points_to_df(
-        sample_points, config_dict['validation_ratio']
+        sample_points, config['validation_ratio']
         ).to_dict('records')
 
     # Pre-run info:
-    scale_x, scale_y = prepare_run_metadata(config_dict)
+    scale_x, scale_y = prepare_run_metadata(config)
 
     # Set up pipeline
     beam_options = PipelineOptions(beam_args,
-                                   project=config_dict['project_id'],
+                                   project=config['project_id'],
                                    region='us-east1',
                                    temp_location='gs://aic-fire-amazon/tmp/',
                                    save_main_session=True,
@@ -343,6 +279,9 @@ def run():
                                    subnetwork='regions/us-east1/subnetworks/default',
                                    )
 
+    # Prepare and serialize inputs
+    prepped_image = build_prepped_image(input_list)
+    serialized_image = serialize(prepped_image)
 
     # Execute pipeline
     with beam.Pipeline(options=beam_options) as pipeline:
@@ -351,7 +290,7 @@ def run():
         training_data, validation_data = (
             pipeline
             | 'Create points' >> beam.Create(input_records)
-            | 'Get patch' >> beam.ParDo(EEComputePatch(config_dict, scale_x, scale_y))
+            | 'Get patch' >> beam.ParDo(EEComputePatch(config, serialized_image, scale_x, scale_y))
             | 'Split dataset' >> beam.Partition(split_dataset, 2)
         )
 
@@ -399,7 +338,3 @@ def run():
         schema,
         os.path.join(args.output_path, 'schema.pbtxt')
     )
-
-
-if __name__ == '__main__':
-    run()
