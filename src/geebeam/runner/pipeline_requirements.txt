@@ -1,6 +1,0 @@
-earthengine-api
-tensorflow
-tensorflow-data-validation
-geopandas
-apache-beam[tfrecord]
-dill

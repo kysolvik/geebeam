@@ -22,6 +22,7 @@ import logging
 import ee
 import geebeam
 
+RANDOM_SEED = 54
 # Define your configuration
 config = {
   "project_id": "ksolvik-misc",
@@ -65,4 +66,4 @@ im_list = [embeddings, mcd64, mb_burned_area]
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)
     # Execute
-    geebeam.runner.run(config=config, input_list=im_list)
+    geebeam.runner.run(config=config, image_list=im_list, random_seed=RANDOM_SEED)
