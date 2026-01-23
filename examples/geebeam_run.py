@@ -22,6 +22,13 @@ Example local execution:
         --runner DirectRunner
 """
 
+import os
+os.environ['GRPC_ARG_KEEPALIVE_TIME_MS'] = '30000'
+os.environ['GRPC_ARG_KEEPALIVE_TIMEOUT_MS'] = '10000'
+os.environ['GRPC_ARG_KEEPALIVE_PERMIT_WITHOUT_CALLS'] = '1'
+os.environ['GRPC_ARG_HTTP2_MAX_PINGS_WITHOUT_DATA'] = '0'
+os.environ['no_proxy'] = 'google.com,googleapis.com'
+
 import logging
 
 import ee
@@ -35,14 +42,14 @@ config = {
   "patch_size": 128,
   "scale": 500,
   "proj": "EPSG:4326",
-  "n_sample": 200,
+  "n_sample": 100,
   "validation_ratio": 0.2,
 }
 
 ee.Initialize(project='ksolvik-misc')
 
 # Define your images for sampling
-ee_proj = ee.Projection(config['proj']).atScale(config['scale'])
+embeddings_proj = ee.ImageCollection('GOOGLE/SATELLITE_EMBEDDING/V1/ANNUAL').first().projection()
 embeddings = (
             ee.ImageCollection('GOOGLE/SATELLITE_EMBEDDING/V1/ANNUAL')
             .filter(ee.Filter.calendarRange(config['target_year']-1,
@@ -50,8 +57,7 @@ embeddings = (
                                             'year'))
             .mosaic()
             # Special step for embeddings: after mosaic, they don't have proj info
-            .setDefaultProjection(crs=config['proj'], scale=config['scale'])
-            .reduceResolution('mean', maxPixels=500)
+           .setDefaultProjection(embeddings_proj).resample('bicubic')
             )
 mcd64 = (ee.ImageCollection('MODIS/061/MCD64A1')
     .select('BurnDate')

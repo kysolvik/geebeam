@@ -89,6 +89,7 @@ def run(config, image_list, random_seed=None):
         training_data, validation_data = (
             pipeline
             | 'Create points' >> beam.Create(input_records)
+            | 'Reshuffle tasks' >> beam.Reshuffle()
             | 'Get patch' >> beam.ParDo(transforms.EEComputePatch(config, serialized_image, scale_x, scale_y))
             | 'Split dataset' >> beam.Partition(transforms.split_dataset, 2)
         )

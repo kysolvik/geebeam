@@ -61,8 +61,8 @@ def split_dataset(element, n_partitions) -> int:
 
 class EEComputePatch(beam.DoFn):
     """DoFn() for computing EE patch
-    
-    config (dict): Dictionary containing configuration settings 
+
+    config (dict): Dictionary containing configuration settings
         in the following key:value pairs:
             project_id (str): Google Cloud project id
             patch_size (int): Patch size, in pixels, of output chips
@@ -78,25 +78,36 @@ class EEComputePatch(beam.DoFn):
         self.scale_x = scale_x
         self.scale_y = scale_y
 
+    def deserialize(self, obj_json):
+        return ee.deserializer.fromJSON(obj_json)
+
     def setup(self):
         print(f"Initializing Earth Engine for project: {self.config['project_id']}")
         logging.warning("EE setup: starting")
-        ee.Initialize(project=self.config['project_id'],
+        credentials = ee.ServiceAccountCredentials(
+            'earth-engine-calls@ksolvik-misc.iam.gserviceaccount.com',
+            '/home/ksolvik/.ssh/ksolvik-misc-70411b88d818.json'
+        )
+        ee.Initialize(credentials=credentials,
+                      project=self.config['project_id'],
                       opt_url='https://earthengine-highvolume.googleapis.com')
         logging.warning("EE setup: finished")
+        ee.data.setDeadline(900000)
+        self.prepped_image = self.deserialize(self.serialized_image)
+        self.last_init_time = 0
 
-    def deserialize(self, obj_json):
-        return ee.deserializer.fromJSON(obj_json)
 
     def process(self, point):
         """Compute a patch of pixel, with upper-left corner defined by the coords."""
         t0 = time.time()
+        if (t0 - self.last_init_time > 180):
+            self.setup()
         logging.warning(f"EE start {point['id']}")
-        prepped_image = self.deserialize(self.serialized_image)
+
 
         # Make a request object.
         request = {
-            'expression': prepped_image,
+            'expression': self.prepped_image,
             'fileFormat': 'NPY',
             'grid': {
                 'dimensions': {
@@ -115,7 +126,16 @@ class EEComputePatch(beam.DoFn):
             },
         }
 
-        raw = ee.data.computePixels(request)
+        try:
+            raw = ee.data.computePixels(request)
+        except Exception as e:
+            if "DEADLINE_EXCEEDED" in str(e) or "RST_STREAM" in str(e):
+                print(str(e))
+                # Rerun setup
+                self.setup()
+                time.sleep(2)  # Give the gRPC loop a chance to catch up
+                raw = ee.data.computePixels(request)
+            raise e
         logging.warning(f"EE bytes: {len(raw)}")
 
         if not raw:
