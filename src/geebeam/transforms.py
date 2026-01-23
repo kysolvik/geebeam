@@ -8,6 +8,8 @@ import numpy as np
 import tensorflow as tf
 import ee
 import apache_beam as beam
+import json
+from apache_beam.io.gcp.gcsio import GcsIO
 
 def _bytes_feature(value):
     """Returns a bytes_list from a string / byte."""
@@ -20,6 +22,11 @@ def _float_feature(value):
 def _int64_feature(value):
     """Returns an int64_list from a bool / enum / int / uint."""
     return tf.train.Feature(int64_list=tf.train.Int64List(value=[value]))
+
+def write_json_to_gcs(json_string, gcs_path):
+    data = json_string.encode('utf-8')
+    with GcsIO().open(gcs_path, mode="wb") as f:
+        f.write(data)
 
 def dict_to_example(element):
     """"Convert structured numpy array to tf.Example proto."""

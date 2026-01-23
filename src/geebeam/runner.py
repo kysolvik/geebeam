@@ -19,6 +19,8 @@ import tensorflow_data_validation as tfdv
 from tfx_bsl.coders import example_coder
 import argparse
 import os
+from google.protobuf.json_format import MessageToJson
+import json
 
 from geebeam import ee_utils, sampler, transforms
 
@@ -126,6 +128,9 @@ def run(config, image_list, random_seed=None):
              os.path.join(args.output_path, 'validation'))
         )
 
+
+    # NOTE: testing a few different formats.
+    # Need to simplify once we decide on one
     # Infer schema
     stats = tfdv.load_statistics(
         os.path.join(args.output_path, 'stats.tfrecord')
@@ -137,3 +142,17 @@ def run(config, image_list, random_seed=None):
         schema,
         os.path.join(args.output_path, 'schema.pbtxt')
     )
+
+    # Also write as pbtxt, easier to read
+    tfdv.write_stats_text(
+        schema,
+        os.path.join(args.output_path, 'stats.pbtxt')
+    )
+
+    # Also write stats and schema as jsons
+    out_schema_json = os.path.join(args.output_path, 'schema.json')
+    out_stats_json = os.path.join(args.output_path, 'stats.json')
+    transforms.write_json_to_gcs(MessageToJson(schema), out_schema_json) 
+    transforms.write_json_to_gcs(MessageToJson(stats), out_stats_json) 
+
+
