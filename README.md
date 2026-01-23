@@ -16,6 +16,9 @@ Work in progress
 
 Work in progress
 
+### Artifact registry setup:
+gcloud auth configure-docker us-east1-docker.pkg.dev
+
 ## Adding other datasets:
 
 Work in progress

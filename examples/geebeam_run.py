@@ -1,19 +1,24 @@
 """Execute GEE tile extraction in Beam + Dataflow
 
 Example dataflow execution:
-    python geebeam_run.py \
-        --output_path gs://aic-fire-amazon/results/ \
-        --region_of_interest ./data/Limites_RAISG_2025/Lim_Raisg.shp \
-        --runner DataflowRunner \
-        --experiments=use_runner_v2 \
-        --max_num_workers=16 \
-        --num_workers=8 \
-       --requirements_file ./pipeline_requirements.txt
+python examples/geebeam_run.py \
+    --region us-east1 \
+    --worker_zone us-east1-b \
+    --network='default' \
+    --subnetwork='regions/us-east1/subnetworks/default' \
+    --sampling_region ../data/Limites_RAISG_2025/Lim_Raisg.shp \
+    --output_path gs://aic-fire-amazon/results_2024_test/ \
+    --runner DataflowRunner \
+    --max_num_workers=2 \
+    --num_workers=1 \
+    --experiments=use_runner_v2 \
+    --machine_type=n2-standard-2\
+    --setup_file='./setup.py'
 
 Example local execution:
     python geebeam_run.py \
         --output_path './results'
-        --region_of_interest ./data/Limites_RAISG_2025/Lim_Raisg.shp \
+        --sampling_region ./data/Limites_RAISG_2025/Lim_Raisg.shp \
         --runner DirectRunner
 """
 
@@ -49,17 +54,20 @@ embeddings = (
             .reduceResolution('mean', maxPixels=500)
             )
 mcd64 = (ee.ImageCollection('MODIS/061/MCD64A1')
-            .select('BurnDate')
-            .filter(ee.Filter.calendarRange(config['target_year'], config['target_year'], 'year'))
-            .min()
-            )
+    .select('BurnDate')
+    .filter(ee.Filter.calendarRange(config['target_year'], config['target_year'], 'year'))
+    .min()
+    )
 mb_burned_area = (
-            ee.Image('projects/mapbiomas-public/assets/brazil/fire/collection4_1/mapbiomas_fire_collection41_annual_burned_v1')
-            .reduceResolution('mean', maxPixels=500)
-            )
+    ee.Image('projects/mapbiomas-public/assets/brazil/fire/collection4_1/mapbiomas_fire_collection41_annual_burned_v1')
+    .reduceResolution('mean', maxPixels=500)
+    )
+mb_deforestation = (
+    ee.Image('projects/mapbiomas-public/assets/brazil/lulc/collection10/mapbiomas_brazil_collection10_deforestation_secondary_vegetation_v2')
+   .reduceResolution('mode', maxPixels=500)
+)
 
-
-im_list = [embeddings, mcd64, mb_burned_area]
+im_list = [embeddings, mcd64, mb_burned_area, mb_deforestation]
 
 
 

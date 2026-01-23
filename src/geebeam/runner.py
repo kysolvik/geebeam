@@ -3,7 +3,7 @@
 Example execution:
     python geebeam_main.py \
         --output_path gs://aic-fire-amazon/results/ \
-        --region_of_interest ./data/Limites_RAISG_2025/Lim_Raisg.shp \
+        --sampling_region ./data/Limites_RAISG_2025/Lim_Raisg.shp \
         --runner DataflowRunner \
         --experiments=use_runner_v2 \
         --max_num_workers=16 \
@@ -40,7 +40,7 @@ def run(config, image_list, random_seed=None):
     import logging
 
     logging.getLogger().setLevel(logging.INFO)
-    
+
     rng = np.random.default_rng(random_seed)
 
     parser = argparse.ArgumentParser()
@@ -50,7 +50,7 @@ def run(config, image_list, random_seed=None):
         help="Directory to save TFRecord files (local or GCS).",
     )
     parser.add_argument(
-        "--region_of_interest",
+        "--sampling_region",
         required=True,
         help="Local geopandas-readable file of region to sample from randomly."
     )
@@ -59,9 +59,9 @@ def run(config, image_list, random_seed=None):
     args, beam_args = parser.parse_known_args()
 
     # Randomly sample points
-    roi = sampler.get_roi(args.region_of_interest)
+    roi = sampler.get_roi(args.sampling_region)
     sampled_points  = sampler.sample_random_points(roi, config['n_sample'], rng)
-     
+
     # Split into training and validation
     input_records = sampler.split_train_validation(
         sampled_points, config['validation_ratio'], rng=rng
@@ -73,12 +73,9 @@ def run(config, image_list, random_seed=None):
     # Set up pipeline
     beam_options = PipelineOptions(beam_args,
                                    project=config['project_id'],
-                                   region='us-east1',
                                    temp_location='gs://aic-fire-amazon/tmp/',
                                    save_main_session=True,
-                                   use_public_ips=False,
-                                   network='default',
-                                   subnetwork='regions/us-east1/subnetworks/default',
+                                   use_public_ips=False
                                    )
 
     # Prepare and serialize inputs
@@ -120,15 +117,15 @@ def run(config, image_list, random_seed=None):
             os.path.join(args.output_path, 'stats.tfrecord'))
 
         # Write out examples
-        (training_examples 
+        (training_examples
          | 'Write training' >> transforms.WriteTFExample(
              os.path.join(args.output_path, 'training'))
         )
-        (validation_examples 
+        (validation_examples
          | 'Write validation' >> transforms.WriteTFExample(
              os.path.join(args.output_path, 'validation'))
         )
-    
+
     # Infer schema
     stats = tfdv.load_statistics(
         os.path.join(args.output_path, 'stats.tfrecord')

@@ -8,8 +8,8 @@ import geopandas as gpd
 from numpy.typing import ArrayLike
 
 
-def get_roi(region_of_interest):
-    return gpd.read_file(region_of_interest)
+def get_roi(sampling_region):
+    return gpd.read_file(sampling_region)
 
 
 def sample_random_points(roi: gpd.GeoDataFrame, n_sample: int, rng: np.random.Generator)->pd.DataFrame:
