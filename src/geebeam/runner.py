@@ -20,11 +20,8 @@ from tfx_bsl.coders import example_coder
 import argparse
 import os
 from google.protobuf.json_format import MessageToJson
-import json
 
 from geebeam import ee_utils, sampler, transforms
-
-from google.api_core import retry
 
 
 def prepare_run_metadata(config):
