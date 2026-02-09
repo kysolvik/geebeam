@@ -23,6 +23,11 @@ def _int64_feature(value):
     """Returns an int64_list from a bool / enum / int / uint."""
     return tf.train.Feature(int64_list=tf.train.Int64List(value=[value]))
 
+def write_json_to_local(json_string, local_path):
+    data = json_string.encode('utf-8')
+    with open(local_path, mode="wb") as f:
+        f.write(data)
+
 def write_json_to_gcs(json_string, gcs_path):
     data = json_string.encode('utf-8')
     with GcsIO().open(gcs_path, mode="wb") as f:
@@ -68,8 +73,8 @@ def split_dataset(element, n_partitions) -> int:
 
 class EEComputePatch(beam.DoFn):
     """DoFn() for computing EE patch
-    
-    config (dict): Dictionary containing configuration settings 
+
+    config (dict): Dictionary containing configuration settings
         in the following key:value pairs:
             project_id (str): Google Cloud project id
             patch_size (int): Patch size, in pixels, of output chips

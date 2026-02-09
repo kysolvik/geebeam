@@ -42,17 +42,6 @@ config = {
 ee.Initialize(project='ksolvik-misc')
 
 # Define your images for sampling
-ee_proj = ee.Projection(config['proj']).atScale(config['scale'])
-embeddings = (
-            ee.ImageCollection('GOOGLE/SATELLITE_EMBEDDING/V1/ANNUAL')
-            .filter(ee.Filter.calendarRange(config['target_year']-1,
-                                            config['target_year']-1,
-                                            'year'))
-            .mosaic()
-            # Special step for embeddings: after mosaic, they don't have proj info
-            .setDefaultProjection(crs=config['proj'], scale=config['scale'])
-            .reduceResolution('mean', maxPixels=500)
-            )
 mcd64 = (ee.ImageCollection('MODIS/061/MCD64A1')
     .select('BurnDate')
     .filter(ee.Filter.calendarRange(config['target_year'], config['target_year'], 'year'))
@@ -66,9 +55,32 @@ mb_deforestation = (
     ee.Image('projects/mapbiomas-public/assets/brazil/lulc/collection10/mapbiomas_brazil_collection10_deforestation_secondary_vegetation_v2')
    .reduceResolution('mode', maxPixels=500)
 )
+deforest_bands = ['deforestation_{}'.format(y) for y in range(1985, 2025)]
+mb_deforestation = (
+    ee.Image('projects/mapbiomas-public/assets/brazil/lulc/collection10/mapbiomas_brazil_collection10_deforestation_secondary_vegetation_v2')
+   .reduceResolution('mode', maxPixels=500)
+   .rename(deforest_bands)
+)
+mb_lulc = (
+    ee.Image('projects/mapbiomas-public/assets/brazil/lulc/collection10/mapbiomas_brazil_collection10_integration_v2')
+    .reduceResolution('mean', maxPixels=500)
+    )
+fwi = (
+    ee.ImageCollection('projects/climate-engine-pro/assets/ce-cems-fire-daily-4-1')
+    .filterDate('{}-01-01'.format(config['target_year']),
+                '{}-04-01'.format(config['target_year']))
+    .max()
+)
+terraclim_mcwd = (
+     ee.ImageCollection('IDAHO_EPSCOR/TERRACLIMATE')
+    .select('def')
+    .filter(ee.Filter.calendarRange(config['target_year']-1,
+                                    config['target_year']-1,
+                                    'year'))
+    .max()
+)
 
-im_list = [embeddings, mcd64, mb_burned_area, mb_deforestation]
-
+im_list = [mcd64, mb_burned_area, mb_deforestation, terraclim_mcwd, mb_lulc, fwi]
 
 
 if __name__ == '__main__':

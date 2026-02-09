@@ -20,11 +20,8 @@ from tfx_bsl.coders import example_coder
 import argparse
 import os
 from google.protobuf.json_format import MessageToJson
-import json
 
 from geebeam import ee_utils, sampler, transforms
-
-from google.api_core import retry
 
 
 def prepare_run_metadata(config):
@@ -145,14 +142,18 @@ def run(config, image_list, random_seed=None):
 
     # Also write as pbtxt, easier to read
     tfdv.write_stats_text(
-        schema,
+        stats,
         os.path.join(args.output_path, 'stats.pbtxt')
     )
 
     # Also write stats and schema as jsons
     out_schema_json = os.path.join(args.output_path, 'schema.json')
     out_stats_json = os.path.join(args.output_path, 'stats.json')
-    transforms.write_json_to_gcs(MessageToJson(schema), out_schema_json) 
-    transforms.write_json_to_gcs(MessageToJson(stats), out_stats_json) 
+    if args.output_path.startswith('gs://'):
+        transforms.write_json_to_gcs(MessageToJson(schema), out_schema_json)
+        transforms.write_json_to_gcs(MessageToJson(stats), out_stats_json)
+    else:
+        transforms.write_json_to_local(MessageToJson(schema), out_schema_json)
+        transforms.write_json_to_local(MessageToJson(stats), out_stats_json)
 
 
