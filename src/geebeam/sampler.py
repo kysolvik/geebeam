@@ -5,7 +5,6 @@ Sample points from region of interest
 import numpy as np
 import pandas as pd
 import geopandas as gpd
-from numpy.typing import ArrayLike
 
 
 def get_roi(sampling_region):
