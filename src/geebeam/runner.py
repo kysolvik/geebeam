@@ -35,7 +35,7 @@ def prepare_run_metadata(config):
 
     return scale_x, scale_y
 
-def run(config, image_list, random_seed=None):
+def run(config, image_list, random_seed=None, split_processing=False):
     import logging
 
     logging.getLogger().setLevel(logging.INFO)
@@ -78,7 +78,10 @@ def run(config, image_list, random_seed=None):
                                    )
 
     # Prepare and serialize inputs
-    prepped_image = ee_utils.build_prepped_image(image_list)
+    # band_groups is a list of lists containing bands to export
+    # if split_processing = False, will contain one list with all bands
+    # if split_processing = True,  contains separate band_lists for each image in image_list
+    prepped_image, band_groups = ee_utils.build_prepped_image(image_list, split_processing=split_processing)
     serialized_image = ee_utils.serialize(prepped_image)
 
     # Execute pipeline
@@ -88,7 +91,7 @@ def run(config, image_list, random_seed=None):
         training_data, validation_data = (
             pipeline
             | 'Create points' >> beam.Create(input_records)
-            | 'Get patch' >> beam.ParDo(transforms.EEComputePatch(config, serialized_image, scale_x, scale_y))
+            | 'Get patch' >> beam.ParDo(transforms.EEComputePatch(config, serialized_image, scale_x, scale_y, band_groups))
             | 'Split dataset' >> beam.Partition(transforms.split_dataset, 2)
         )
 

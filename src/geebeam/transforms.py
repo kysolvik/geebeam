@@ -84,11 +84,12 @@ class EEComputePatch(beam.DoFn):
             inputs_keys (list): Names of input data, correspond to keys in self.prep_dict
             proj (str): Projection, e.g. "EPSG:4326"
     """
-    def __init__(self, config, serialized_image, scale_x, scale_y):
+    def __init__(self, config, serialized_image, scale_x, scale_y, band_groups):
         self.config = config
         self.serialized_image = serialized_image
         self.scale_x = scale_x
         self.scale_y = scale_y
+        self.band_groups = band_groups
 
     def setup(self):
         print(f"Initializing Earth Engine for project: {self.config['project_id']}")
@@ -100,15 +101,10 @@ class EEComputePatch(beam.DoFn):
     def deserialize(self, obj_json):
         return ee.deserializer.fromJSON(obj_json)
 
-    def process(self, point):
-        """Compute a patch of pixel, with upper-left corner defined by the coords."""
-        t0 = time.time()
-        logging.warning(f"EE start {point['id']}")
-        prepped_image = self.deserialize(self.serialized_image)
-
+    def _get_pixels(self, im, point):
         # Make a request object.
         request = {
-            'expression': prepped_image,
+            'expression': im,
             'fileFormat': 'NPY',
             'grid': {
                 'dimensions': {
@@ -128,7 +124,6 @@ class EEComputePatch(beam.DoFn):
         }
 
         raw = ee.data.computePixels(request)
-        logging.warning(f"EE bytes: {len(raw)}")
 
         if not raw:
             raise RuntimeError("Empty EE response")
@@ -138,12 +133,34 @@ class EEComputePatch(beam.DoFn):
         except Exception as e:
             raise RuntimeError(f"Failed to load NPY for coords {point['id']}") from e
 
-        logging.warning(
-            f"EE end {point['id']}, took {time.time() - t0:.1f}s, bytes={len(raw)}"
-        )
+        return arr
+
+    def _join_structured_arrays(self, array_list):
+        """Join structured array along features axis"""
+        template = array_list[0]
+        new_dtype = sum([a.dtype.descr for a in array_list], [])
+        merged = np.empty(template.shape, dtype=new_dtype)
+        for a in array_list:
+            for feat in a.dtype.names:
+                merged[feat] = a[feat]
+        return merged
+
+    def process(self, point):
+        """Compute a patch of pixel, with upper-left corner defined by the coords."""
+        logging.warning(f"EE start {point['id']}")
+        t0 = time.time()
+        out_ars = []
+        for band_list in self.band_groups:
+            prepped_image = self.deserialize(self.serialized_image).select(band_list)
+            out_ars.append(self._get_pixels(prepped_image, point))
+            print(len(out_ars[-1].dtype))
 
         out_dict = dict(point)
-        out_dict['array'] = arr
+        out_dict['array'] = self._join_structured_arrays(out_ars)
+        print(len(out_dict['array'].dtype))
+        logging.warning(
+            f"EE end {point['id']}, took {time.time() - t0:.1f}s"
+        )
         yield out_dict
 
 class WriteTFExample(beam.PTransform):
