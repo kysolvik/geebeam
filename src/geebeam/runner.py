@@ -97,11 +97,6 @@ def run(config, image_list, random_seed=None):
             training_data
             | 'Train to tf.Example' >> beam.Map(transforms.dict_to_example)
         )
-        validation_examples = (
-            validation_data
-            | 'Val to tf.Example' >> beam.Map(transforms.dict_to_example)
-        )
-
         # Calculate stats on training data
         decoder = example_coder.ExamplesToRecordBatchDecoder()
         stats = (
@@ -120,10 +115,16 @@ def run(config, image_list, random_seed=None):
          | 'Write training' >> transforms.WriteTFExample(
              os.path.join(args.output_path, 'training'))
         )
-        (validation_examples
-         | 'Write validation' >> transforms.WriteTFExample(
-             os.path.join(args.output_path, 'validation'))
-        )
+        if config['validation_ratio'] > 0:
+            validation_examples = (
+                validation_data
+                | 'Val to tf.Example' >> beam.Map(transforms.dict_to_example)
+            )
+
+            (validation_examples
+            | 'Write validation' >> transforms.WriteTFExample(
+                os.path.join(args.output_path, 'validation'))
+            )
 
 
     # NOTE: testing a few different formats.
