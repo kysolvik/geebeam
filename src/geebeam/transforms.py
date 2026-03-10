@@ -8,7 +8,6 @@ import numpy as np
 import tensorflow as tf
 import ee
 import apache_beam as beam
-import json
 from apache_beam.io.gcp.gcsio import GcsIO
 
 def _bytes_feature(value):
