@@ -168,7 +168,7 @@ class EEComputePatch(beam.DoFn):
                 merged[feat] = a[feat]
         return merged
 
-    def _struct_arrays_to_dict(self, array_list):
+    def _join_struct_arrays_to_dict(self, array_list):
         """Join structured array along features axis, return as dict"""
         merged_dict = {}
         for a in array_list:
@@ -186,12 +186,10 @@ class EEComputePatch(beam.DoFn):
             out_ars.append(self._get_pixels(prepped_image, point))
 
         out_dict = {'metadata': dict(point)}
-        print(out_dict['metadata'])
-        out_dict['array'] = self._struct_arrays_to_dict(out_ars)
+        out_dict['array'] = self._join_struct_arrays_to_dict(out_ars)
         logging.warning(
             f"EE end {point['id']}, took {time.time() - t0:.1f}s"
         )
-        print(out_dict.keys())
         yield out_dict
 
 class AddMetadata(beam.DoFn):
