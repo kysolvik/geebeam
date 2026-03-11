@@ -8,7 +8,6 @@ import numpy as np
 import tensorflow as tf
 import ee
 import apache_beam as beam
-import json
 from apache_beam.io.gcp.gcsio import GcsIO
 
 def _bytes_feature(value):
@@ -33,20 +32,40 @@ def write_json_to_gcs(json_string, gcs_path):
     with GcsIO().open(gcs_path, mode="wb") as f:
         f.write(data)
 
+def convert_to_iterable(val):
+    # Convert to iterable
+    try:
+        _iter_check = iter(val)
+    except TypeError:
+        return [val]
+    else:
+        return val
+
 def dict_to_example(element):
     """"Convert structured numpy array to tf.Example proto."""
     # First add metadata
-    feature = {
-        'id': _int64_feature(element['id']),
-        'lat': _float_feature(element['lat']),
-        'lon': _float_feature(element['lon']),
-    }
+    md_dict = {
+        'md_id': _int64_feature(element['metadata']['id']),
+        'md_lat': _float_feature(element['metadata']['lat']),
+        'md_lon': _float_feature(element['metadata']['lon']),
+        }
+    for md_key in element['metadata'].keys():
+        if md_key not in ['id','lat','lon', 'split']:
+            md_dict['md_' + md_key] = tf.train.Feature(float_list=
+                tf.train.FloatList(
+                    value = convert_to_iterable(element['metadata'][md_key])
+                )
+            )
 
     # Build image feature with named bands
-    for im_feat in element['array'].dtype.names:
-        feature[im_feat] = tf.train.Feature(
+    array_dict = {}
+    for im_feat in element['array'].keys():#.dtype.names:
+        array_dict['im_'+im_feat] = tf.train.Feature(
             float_list = tf.train.FloatList(
                 value = element['array'][im_feat].flatten()))
+
+    # Combine
+    feature = {**md_dict, **array_dict}
 
     # Build example and serialize
     return tf.train.Example(
@@ -68,7 +87,7 @@ def split_dataset(element, n_partitions) -> int:
         'val': 1,
         'test': 2
     }
-    return split_mappings[element['split']]
+    return split_mappings[element['metadata']['split']]
 
 
 class EEComputePatch(beam.DoFn):
@@ -84,11 +103,12 @@ class EEComputePatch(beam.DoFn):
             inputs_keys (list): Names of input data, correspond to keys in self.prep_dict
             proj (str): Projection, e.g. "EPSG:4326"
     """
-    def __init__(self, config, serialized_image, scale_x, scale_y):
+    def __init__(self, config, serialized_image, scale_x, scale_y, band_groups):
         self.config = config
         self.serialized_image = serialized_image
         self.scale_x = scale_x
         self.scale_y = scale_y
+        self.band_groups = band_groups
 
     def setup(self):
         print(f"Initializing Earth Engine for project: {self.config['project_id']}")
@@ -100,15 +120,10 @@ class EEComputePatch(beam.DoFn):
     def deserialize(self, obj_json):
         return ee.deserializer.fromJSON(obj_json)
 
-    def process(self, point):
-        """Compute a patch of pixel, with upper-left corner defined by the coords."""
-        t0 = time.time()
-        logging.warning(f"EE start {point['id']}")
-        prepped_image = self.deserialize(self.serialized_image)
-
+    def _get_pixels(self, im, point):
         # Make a request object.
         request = {
-            'expression': prepped_image,
+            'expression': im,
             'fileFormat': 'NPY',
             'grid': {
                 'dimensions': {
@@ -128,23 +143,65 @@ class EEComputePatch(beam.DoFn):
         }
 
         raw = ee.data.computePixels(request)
-        logging.warning(f"EE bytes: {len(raw)}")
 
         if not raw:
             raise RuntimeError("Empty EE response")
 
         try:
-            arr = np.load(io.BytesIO(raw))
+            arr = np.load(io.BytesIO(raw), allow_pickle=True)
         except Exception as e:
             raise RuntimeError(f"Failed to load NPY for coords {point['id']}") from e
 
-        logging.warning(
-            f"EE end {point['id']}, took {time.time() - t0:.1f}s, bytes={len(raw)}"
-        )
+        return arr
 
-        out_dict = dict(point)
-        out_dict['array'] = arr
+    def _join_structured_arrays(self, array_list):
+        """Join structured array along features axis"""
+        template = array_list[0]
+        new_dtype = sum([a.dtype.descr for a in array_list], [])
+        merged = np.empty(template.shape, dtype=new_dtype)
+        for a in array_list:
+            for feat in a.dtype.names:
+                merged[feat] = a[feat]
+        return merged
+
+    def _join_struct_arrays_to_dict(self, array_list):
+        """Join structured array along features axis, return as dict"""
+        merged_dict = {}
+        for a in array_list:
+            for feat in a.dtype.names:
+                merged_dict[feat] = a[feat]
+        return merged_dict
+
+    def process(self, point):
+        """Compute a patch of pixel, with upper-left corner defined by the coords."""
+        logging.warning(f"EE start {point['id']}")
+        t0 = time.time()
+        out_ars = []
+        for band_list in self.band_groups:
+            prepped_image = self.deserialize(self.serialized_image).select(band_list)
+            out_ars.append(self._get_pixels(prepped_image, point))
+
+        out_dict = {'metadata': dict(point)}
+        out_dict['array'] = self._join_struct_arrays_to_dict(out_ars)
+        logging.warning(
+            f"EE end {point['id']}, took {time.time() - t0:.1f}s"
+        )
         yield out_dict
+
+class AddMetadata(beam.DoFn):
+    def __init__(self, metadata):
+        self.metadata = metadata
+
+    def process(self, example):
+        merged_metadata = {
+            **example.get("metadata", {}),
+            **self.metadata
+        }
+
+        yield {
+            "array": example["array"],
+            "metadata": merged_metadata
+        }
 
 class WriteTFExample(beam.PTransform):
     """Write example"""
