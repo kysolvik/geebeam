@@ -1,4 +1,7 @@
 # GeeBeam
+
+[![Testing + Linting](https://github.com/kysolvik/geebeam/actions/workflows/pytest-lint.yml/badge.svg)](https://github.com/kysolvik/geebeam/actions/workflows/pytest-lint.yml)
+
 Google Earth Engine + Apache Beam for building geospatial training datasets
 
 ## Purpose:
