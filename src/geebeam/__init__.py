@@ -3,7 +3,7 @@
 Beam and Earth Engine helpers for running data pipelines
 """
 
-from . import runner, sampler, transforms, ee_utils
+from . import runner, sampler, transforms, ee_utils, climate_indices
 
 
 __all__ = [
@@ -11,4 +11,5 @@ __all__ = [
     "runner",
     "sampler",
     "transforms",
+    "climate_indices",
 ]
