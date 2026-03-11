@@ -32,20 +32,44 @@ def write_json_to_gcs(json_string, gcs_path):
     with GcsIO().open(gcs_path, mode="wb") as f:
         f.write(data)
 
+def convert_to_iterable(val):
+    # Convert to iterable
+    try:
+        _iter_check = iter(val)
+    except TypeError:
+        return [val]
+    else:
+        return val
+
 def dict_to_example(element):
     """"Convert structured numpy array to tf.Example proto."""
     # First add metadata
-    feature = {
-        'id': _int64_feature(element['id']),
-        'lat': _float_feature(element['lat']),
-        'lon': _float_feature(element['lon']),
-    }
+    md_dict = {
+        'id': _int64_feature(element['metadata']['id']),
+        'lat': _float_feature(element['metadata']['lat']),
+        'lon': _float_feature(element['metadata']['lon']),
+        }
+    print(element['metadata'].keys())
+    for md_key in element['metadata'].keys():
+        if md_key not in ['id','lat','lon', 'split']:
+            md_dict[md_key] = tf.train.Feature(float_list=
+                tf.train.FloatList(
+                    value = convert_to_iterable(element['metadata'][md_key])
+                )
+            )
 
     # Build image feature with named bands
-    for im_feat in element['array'].dtype.names:
-        feature[im_feat] = tf.train.Feature(
+    array_dict = {}
+    for im_feat in element['array'].keys():#.dtype.names:
+        array_dict[im_feat] = tf.train.Feature(
             float_list = tf.train.FloatList(
                 value = element['array'][im_feat].flatten()))
+
+    # Combine
+    feature = {
+        'metadata': md_dict,
+        'array': array_dict
+    }
 
     # Build example and serialize
     return tf.train.Example(
@@ -67,7 +91,7 @@ def split_dataset(element, n_partitions) -> int:
         'val': 1,
         'test': 2
     }
-    return split_mappings[element['split']]
+    return split_mappings[element['metadata']['split']]
 
 
 class EEComputePatch(beam.DoFn):
@@ -144,6 +168,14 @@ class EEComputePatch(beam.DoFn):
                 merged[feat] = a[feat]
         return merged
 
+    def _struct_arrays_to_dict(self, array_list):
+        """Join structured array along features axis, return as dict"""
+        merged_dict = {}
+        for a in array_list:
+            for feat in a.dtype.names:
+                merged_dict[feat] = a[feat]
+        return merged_dict
+
     def process(self, point):
         """Compute a patch of pixel, with upper-left corner defined by the coords."""
         logging.warning(f"EE start {point['id']}")
@@ -153,12 +185,31 @@ class EEComputePatch(beam.DoFn):
             prepped_image = self.deserialize(self.serialized_image).select(band_list)
             out_ars.append(self._get_pixels(prepped_image, point))
 
-        out_dict = dict(point)
-        out_dict['array'] = self._join_structured_arrays(out_ars)
+        out_dict = {'metadata': dict(point)}
+        print(out_dict['metadata'])
+        out_dict['array'] = self._struct_arrays_to_dict(out_ars)
         logging.warning(
             f"EE end {point['id']}, took {time.time() - t0:.1f}s"
         )
+        print(out_dict.keys())
         yield out_dict
+
+class AddMetadata(beam.DoFn):
+    def __init__(self, metadata):
+        self.metadata = metadata
+
+    def process(self, example):
+        print(example['metadata'])
+        merged_metadata = {
+            **example.get("metadata", {}),
+            **self.metadata
+        }
+        print(merged_metadata)
+
+        yield {
+            "array": example["array"],
+            "metadata": merged_metadata
+        }
 
 class WriteTFExample(beam.PTransform):
     """Write example"""

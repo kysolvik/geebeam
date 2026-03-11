@@ -92,7 +92,7 @@ def run(config, image_list, random_seed=None, split_processing=False, extra_meta
             pipeline
             | 'Create points' >> beam.Create(input_records)
             | 'Get patch' >> beam.ParDo(transforms.EEComputePatch(config, serialized_image, scale_x, scale_y, band_groups))
-            | 'Add metadata' >> beam.Map(lambda example: {**example, **extra_metadata})
+            | 'Add metadata' >> beam.ParDo(transforms.AddMetadata(extra_metadata))
             | 'Split dataset' >> beam.Partition(transforms.split_dataset, 2)
         )
 
