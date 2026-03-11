@@ -35,7 +35,7 @@ def prepare_run_metadata(config):
 
     return scale_x, scale_y
 
-def run(config, image_list, random_seed=None, split_processing=False):
+def run(config, image_list, random_seed=None, split_processing=False, extra_metadata={}):
     import logging
 
     logging.getLogger().setLevel(logging.INFO)
@@ -92,6 +92,7 @@ def run(config, image_list, random_seed=None, split_processing=False):
             pipeline
             | 'Create points' >> beam.Create(input_records)
             | 'Get patch' >> beam.ParDo(transforms.EEComputePatch(config, serialized_image, scale_x, scale_y, band_groups))
+            | 'Add metadata' >> beam.Map(lambda example: {**example, **extra_metadata})
             | 'Split dataset' >> beam.Partition(transforms.split_dataset, 2)
         )
 
