@@ -29,8 +29,8 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
-    - name: Install the project
-      run: uv pip install . --system
+    - name: Install the project plus pytest
+      run: uv pip install . pytest --system
 
     - name: Run Ruff linter and formatter checks
       uses: astral-sh/ruff-action@v3
