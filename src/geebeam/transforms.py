@@ -128,7 +128,7 @@ class EEComputePatch(beam.DoFn):
             raise RuntimeError("Empty EE response")
 
         try:
-            arr = np.load(io.BytesIO(raw))
+            arr = np.load(io.BytesIO(raw), allow_pickle=True)
         except Exception as e:
             raise RuntimeError(f"Failed to load NPY for coords {point['id']}") from e
 
@@ -152,11 +152,9 @@ class EEComputePatch(beam.DoFn):
         for band_list in self.band_groups:
             prepped_image = self.deserialize(self.serialized_image).select(band_list)
             out_ars.append(self._get_pixels(prepped_image, point))
-            print(len(out_ars[-1].dtype))
 
         out_dict = dict(point)
         out_dict['array'] = self._join_structured_arrays(out_ars)
-        print(len(out_dict['array'].dtype))
         logging.warning(
             f"EE end {point['id']}, took {time.time() - t0:.1f}s"
         )
