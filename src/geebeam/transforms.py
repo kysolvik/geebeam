@@ -49,7 +49,6 @@ def dict_to_example(element):
         'lat': _float_feature(element['metadata']['lat']),
         'lon': _float_feature(element['metadata']['lon']),
         }
-    print(element['metadata'].keys())
     for md_key in element['metadata'].keys():
         if md_key not in ['id','lat','lon', 'split']:
             md_dict[md_key] = tf.train.Feature(float_list=
@@ -66,10 +65,7 @@ def dict_to_example(element):
                 value = element['array'][im_feat].flatten()))
 
     # Combine
-    feature = {
-        'metadata': md_dict,
-        'array': array_dict
-    }
+    feature = {**md_dict, **array_dict}
 
     # Build example and serialize
     return tf.train.Example(
@@ -197,12 +193,10 @@ class AddMetadata(beam.DoFn):
         self.metadata = metadata
 
     def process(self, example):
-        print(example['metadata'])
         merged_metadata = {
             **example.get("metadata", {}),
             **self.metadata
         }
-        print(merged_metadata)
 
         yield {
             "array": example["array"],
