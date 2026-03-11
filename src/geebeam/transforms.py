@@ -45,13 +45,13 @@ def dict_to_example(element):
     """"Convert structured numpy array to tf.Example proto."""
     # First add metadata
     md_dict = {
-        'id': _int64_feature(element['metadata']['id']),
-        'lat': _float_feature(element['metadata']['lat']),
-        'lon': _float_feature(element['metadata']['lon']),
+        'md_id': _int64_feature(element['metadata']['id']),
+        'md_lat': _float_feature(element['metadata']['lat']),
+        'md_lon': _float_feature(element['metadata']['lon']),
         }
     for md_key in element['metadata'].keys():
         if md_key not in ['id','lat','lon', 'split']:
-            md_dict[md_key] = tf.train.Feature(float_list=
+            md_dict['md_' + md_key] = tf.train.Feature(float_list=
                 tf.train.FloatList(
                     value = convert_to_iterable(element['metadata'][md_key])
                 )
@@ -60,7 +60,7 @@ def dict_to_example(element):
     # Build image feature with named bands
     array_dict = {}
     for im_feat in element['array'].keys():#.dtype.names:
-        array_dict[im_feat] = tf.train.Feature(
+        array_dict['im_'+im_feat] = tf.train.Feature(
             float_list = tf.train.FloatList(
                 value = element['array'][im_feat].flatten()))
 
