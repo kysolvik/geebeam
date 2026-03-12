@@ -35,7 +35,8 @@ def prepare_run_metadata(config):
 
     return scale_x, scale_y
 
-def run(config, image_list, random_seed=None, split_processing=False, extra_metadata={}):
+def run(config, image_list, random_seed=None, split_processing=False, extra_metadata={},
+        output_path=None, sampling_region=None):
     import logging
 
     logging.getLogger().setLevel(logging.INFO)
@@ -45,17 +46,22 @@ def run(config, image_list, random_seed=None, split_processing=False, extra_meta
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--output_path",
-        required=True,
+        required=False,
         help="Directory to save TFRecord files (local or GCS).",
     )
     parser.add_argument(
         "--sampling_region",
-        required=True,
+        required=False,
         help="Local geopandas-readable file of region to sample from randomly."
     )
 
     # Beam args are leftover after parsing known args
     args, beam_args = parser.parse_known_args()
+
+    if args.sampling_region is None:
+        args.sampling_region = sampling_region
+    if args.output_path is None:
+        args.output_path = output_path
 
     # Randomly sample points
     roi = sampler.get_roi(args.sampling_region)

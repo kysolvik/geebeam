@@ -17,8 +17,8 @@ def download_clim_indices(
 
     try:
         download_url = clim_registry[index_name]
-    except ValueError:
-        raise ValueError(f'{index_name} not found. Current options are {clim_registry.keys()}')
+    except KeyError:
+        raise ValueError(f'{index_name} not found. Current options are {list(clim_registry.keys())}')
 
     if index_name == 'amo':
         df = pd.read_csv(download_url, skiprows=1, sep='\s+')
