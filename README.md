@@ -15,7 +15,7 @@ The pipelines can be run locally or on Google Cloud Dataflow. (Note: currently l
 
 ## Install:
 
-```
+```bash
 pip install geebeam
 ```
 
@@ -24,7 +24,7 @@ pip install geebeam
 Here we'll create a burned area mask for 2024 using the MCD64A1 product.
 For example, this could be the target variable for a burn risk model.
 
-```
+```python
 import ee
 import geebeam
 import google
@@ -59,7 +59,7 @@ geebeam.run(
 ```
 
 Now let's add another dataset: MapBiomas Amazonia forest fraction
-```
+```python
 # MB Land-use/land-cover forest fraction
 # Note that LULC codes less than 10 area forest in MapBiomas Amazon Collection 6
 mb_amz_lulc = (
@@ -87,7 +87,7 @@ geebeam.run(
 
 The export process can be scaled to many workers via Google Cloud DataFlow: 
 
-```
+```bash
 python examples/geebeam_run.py \
     --region us-east1 \
     --worker_zone us-east1-b \
@@ -112,7 +112,7 @@ Next, you'll need to create  a Google Artifact Registry respository and configur
 
 Now you can pre-build the container at the start of your DataFlow job:
 
-```
+```bash
 python examples/geebeam_run.py \
     --region us-east1 \
     --worker_zone us-east1-b \
@@ -128,7 +128,7 @@ python examples/geebeam_run.py \
 
 Next time you can use the existing image with:
 
-```
+```bash
 --sdk_container_image=us-east1-docker.pkg.dev/[PROJECT_ID]/[REPO_NAME]/[IMAGE_NAME]:[IMAGE_TAG]
 ```
 
