@@ -24,6 +24,15 @@ from google.protobuf.json_format import MessageToJson
 from geebeam import ee_utils, sampler, transforms
 
 
+def check_if_localrunner(beam_options):
+    """Fixes gRPC timeout issue for local runners."""
+    runner = beam_options.get_all_options()['runner']
+    if runner is None or runner in ['DirectRunner', 'PrismRunner']:
+        return True
+    else:
+        return False
+
+
 def prepare_run_metadata(config):
     ee.Initialize(project=config['project_id'])
 
@@ -83,6 +92,9 @@ def run(config, image_list, random_seed=None, split_processing=False, extra_meta
                                    use_public_ips=False
                                    )
 
+    # Check if a local runner
+    is_local = check_if_localrunner(beam_options)
+
     # Prepare and serialize inputs
     # band_groups is a list of lists containing bands to export
     # if split_processing = False, will contain one list with all bands
@@ -93,11 +105,28 @@ def run(config, image_list, random_seed=None, split_processing=False, extra_meta
     # Execute pipeline
     with beam.Pipeline(options=beam_options) as pipeline:
 
-        # Gather data and split
+        points = pipeline | 'Create points' >> beam.Create(input_records)
+
+        if is_local:
+            batches = (
+                points
+                | 'Add Dummy Key' >> beam.Map(lambda x: (None, x))
+                | 'Reshuffle' >> beam.Reshuffle()
+                | 'Force Single Batches' >> beam.GroupIntoBatches(batch_size=1)
+                | 'Extract' >> beam.FlatMap(lambda x: x[1])
+            )
+        else:
+            batches = points
+
         training_data, validation_data = (
-            pipeline
-            | 'Create points' >> beam.Create(input_records)
-            | 'Get patch' >> beam.ParDo(transforms.EEComputePatch(config, serialized_image, scale_x, scale_y, band_groups))
+            batches
+            | 'Get patch' >> beam.ParDo(transforms.EEComputePatch(
+                config,
+                serialized_image,
+                scale_x,
+                scale_y,
+                band_groups
+                ))
             | 'Add metadata' >> beam.ParDo(transforms.AddMetadata(extra_metadata))
             | 'Split dataset' >> beam.Partition(transforms.split_dataset, 2)
         )
