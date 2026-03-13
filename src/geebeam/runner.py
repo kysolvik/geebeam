@@ -24,7 +24,7 @@ from google.protobuf.json_format import MessageToJson
 from geebeam import ee_utils, sampler, transforms
 
 
-def _check_if_localrunner(beam_options):
+def check_if_localrunner(beam_options):
     """Fixes gRPC timeout issue for local runners."""
     runner = beam_options.get_all_options()['runner']
     if runner is None or runner in ['DirectRunner', 'PrismRunner']:
@@ -93,7 +93,7 @@ def run(config, image_list, random_seed=None, split_processing=False, extra_meta
                                    )
 
     # Check if a local runner
-    is_local = _check_if_localrunner(beam_options)
+    is_local = check_if_localrunner(beam_options)
 
     # Prepare and serialize inputs
     # band_groups is a list of lists containing bands to export
@@ -111,8 +111,9 @@ def run(config, image_list, random_seed=None, split_processing=False, extra_meta
             batches = (
                 points
                 | 'Add Dummy Key' >> beam.Map(lambda x: (None, x))
+                | 'Reshuffle' >> beam.Reshuffle()
                 | 'Force Single Batches' >> beam.GroupIntoBatches(batch_size=1)
-                | 'Extract' >> beam.Map(lambda x: x[1][0])
+                | 'Extract' >> beam.FlatMap(lambda x: x[1])
             )
         else:
             batches = points
