@@ -1,10 +1,10 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
 name = "geebeam"
-version = "0.1.0"
+dynamic = ["version"]
 license = "MIT"
 description = "Earth Engine + Apache Beam"
 readme = "README.md"
@@ -20,6 +20,14 @@ dependencies = [
     "tfx-bsl>=1.16",
     "grpcio>=1.62.3",
 ]
+
+# Version control
+[tool.hatch.build.hooks.vcs]
+version-file = "_version.py"
+
+[tool.hatch.version]
+source = "vcs"
+
 
 [tool.hatch.build.targets.sdist]
 include = [
