@@ -10,14 +10,15 @@ description = "Earth Engine + Apache Beam"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "apache-beam[gcp]>=2.70.0",
+    "apache-beam[gcp]>=2.71.0",
     "dill>=0.4.1",
     "earthengine-api>=1.7.10",
     "geopandas>=1.0.1",
     "tensorflow>=2.16",
     "tensorflow-data-validation>=1.16",
     "tensorflow-metadata>=1.16",
-    "tfx-bsl>=1.16"
+    "tfx-bsl>=1.16",
+    "grpcio>=1.62.3",
 ]
 
 [tool.hatch.build.targets.sdist]
