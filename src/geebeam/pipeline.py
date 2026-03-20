@@ -24,7 +24,7 @@ def _check_if_localrunner(beam_options):
 def _prepare_run_metadata(config):
     ee.Initialize(project=config['project_id'])
 
-    proj = ee.Projection(config['proj']).atScale(config['scale'])
+    proj = ee.Projection(config['crs']).atScale(config['scale'])
     proj_dict = proj.getInfo()
 
     scale_x = proj_dict['transform'][0]
@@ -33,13 +33,19 @@ def _prepare_run_metadata(config):
     return scale_x, scale_y
 
 def run_pipeline(
-        config,
         image_list,
+        project: str,
+        patch_size: int,
+        scale: float,
+        n_sample: int,
+        validation_ratio: float=0.2,
+        crs='EPSG:4326',
         random_seed=None,
         split_processing=False,
         extra_metadata={},
         output_path=None,
-        sampling_region=None
+        sampling_region=None,
+        config=None
         ):
     import logging
 
@@ -66,6 +72,16 @@ def run_pipeline(
         args.sampling_region = sampling_region
     if args.output_path is None:
         args.output_path = output_path
+    
+    if config is None:
+        config = {
+            'project_id': project,
+            'patch_size': patch_size,
+            'scale': scale,
+            'n_sample': n_sample,
+            'validation_ratio':validation_ratio,
+            'crs': crs
+        }
 
     # Randomly sample points
     roi = sampler.get_roi(args.sampling_region)
