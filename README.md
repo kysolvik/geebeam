@@ -33,7 +33,7 @@ import google
 PROJECT_ID = google.auth.default()[1]
 
 # Initialize ee client, replace with your GCP project ID
-ee.Initalize(project=PROJECT_ID)
+ee.Initialize(project=PROJECT_ID)
 
 # Build image for download
 burned_2024 = (ee.ImageCollection('MODIS/061/MCD64A1')
@@ -45,7 +45,7 @@ burned_2024 = (ee.ImageCollection('MODIS/061/MCD64A1')
             )
 
 # Building and triggering the pipeline is done with a single command:
-geebeam.run(
+geebeam.run_pipeline(
     image_list = [burned_2024],
     project=PROJECT_ID,
     patch_size=128, # Pixel dimensions in each direction
@@ -53,8 +53,7 @@ geebeam.run(
     n_sample=10, # Number of tiles to sample
     validation_ratio=0.2, # Fraction to select as validation data
     output_path='./test/',
-    sampling_region=ee.Geometry.Rectangle(-63.0, -9.0, -56.0, -4.0),
-    num_workers=2
+    sampling_region=ee.Geometry.Rectangle(-63.0, -9.0, -56.0, -4.0)
 )
 ```
 
