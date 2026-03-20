@@ -13,7 +13,7 @@ config = {
   "project_id": PROJECT_ID,
   "patch_size": 128,
   "scale": 500,
-  "proj": "EPSG:4326",
+  "crs": "EPSG:4326",
   "n_sample": 10,
   "validation_ratio": 0.2,
 }
@@ -40,7 +40,7 @@ im_list = [mb_amz_lulc, mcd64]
     # Execute
 if __name__ == '__main__':
     # Execute
-    geebeam.runner.run(
+    geebeam.run_pipeline(
         config=config,
         image_list=im_list,
         random_seed=RANDOM_SEED,
