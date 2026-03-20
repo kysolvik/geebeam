@@ -8,7 +8,7 @@ from apache_beam.options.pipeline_options import PipelineOptions
 def test_prepare_run_metadata(mock_projection, mock_ee_init):
     config = {
         'project_id': 'test-project',
-        'proj': 'EPSG:4326',
+        'crs': 'EPSG:4326',
         'scale': 30
     }
 
