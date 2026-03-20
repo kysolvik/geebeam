@@ -3,8 +3,9 @@
 Beam and Earth Engine helpers for running data pipelines
 """
 
-from . import runner, sampler, transforms, ee_utils, climate_indices
+from . import sampler, transforms, ee_utils, climate_indices
 
+from .pipeline import run_pipeline
 
 __all__ = [
     "ee_utils",
@@ -12,4 +13,5 @@ __all__ = [
     "sampler",
     "transforms",
     "climate_indices",
+    "run_pipeline",
 ]

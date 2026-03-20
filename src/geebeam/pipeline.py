@@ -1,16 +1,4 @@
-"""Prepare and run Beam pipeline to download image 'chips' from Earth Engine
-
-Example execution:
-    python geebeam_main.py \
-        --output_path gs://aic-fire-amazon/results/ \
-        --sampling_region ./data/Limites_RAISG_2025/Lim_Raisg.shp \
-        --runner DataflowRunner \
-        --experiments=use_runner_v2 \
-        --max_num_workers=16 \
-        --num_workers=8 \
-        --requirements_file ./pipeline_requirements.txt
-
-"""
+"""Prepare and run Beam pipeline to download image 'chips' from Earth Engine"""
 import ee
 import numpy as np
 import apache_beam as beam
@@ -24,7 +12,7 @@ from google.protobuf.json_format import MessageToJson
 from geebeam import ee_utils, sampler, transforms
 
 
-def check_if_localrunner(beam_options):
+def _check_if_localrunner(beam_options):
     """Fixes gRPC timeout issue for local runners."""
     runner = beam_options.get_all_options()['runner']
     if runner is None or runner in ['DirectRunner', 'PrismRunner']:
@@ -33,7 +21,7 @@ def check_if_localrunner(beam_options):
         return False
 
 
-def prepare_run_metadata(config):
+def _prepare_run_metadata(config):
     ee.Initialize(project=config['project_id'])
 
     proj = ee.Projection(config['proj']).atScale(config['scale'])
@@ -44,8 +32,15 @@ def prepare_run_metadata(config):
 
     return scale_x, scale_y
 
-def run(config, image_list, random_seed=None, split_processing=False, extra_metadata={},
-        output_path=None, sampling_region=None):
+def run_pipeline(
+        config,
+        image_list,
+        random_seed=None,
+        split_processing=False,
+        extra_metadata={},
+        output_path=None,
+        sampling_region=None
+        ):
     import logging
 
     logging.getLogger().setLevel(logging.INFO)
@@ -82,7 +77,7 @@ def run(config, image_list, random_seed=None, split_processing=False, extra_meta
         ).to_dict('records')
 
     # Pre-run info:
-    scale_x, scale_y = prepare_run_metadata(config)
+    scale_x, scale_y = _prepare_run_metadata(config)
 
     # Set up pipeline
     beam_options = PipelineOptions(beam_args,
@@ -93,7 +88,7 @@ def run(config, image_list, random_seed=None, split_processing=False, extra_meta
                                    )
 
     # Check if a local runner
-    is_local = check_if_localrunner(beam_options)
+    is_local = _check_if_localrunner(beam_options)
 
     # Prepare and serialize inputs
     # band_groups is a list of lists containing bands to export
