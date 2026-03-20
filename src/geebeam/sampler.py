@@ -2,14 +2,28 @@
 Sample points from region of interest
 """
 
+import json
 import numpy as np
 import pandas as pd
 import geopandas as gpd
+import ee
 
 
-def get_roi(sampling_region):
-    return gpd.read_file(sampling_region)
-
+def get_roi(
+    sampling_region: str | ee.Geometry | gpd.GeoDataFrame
+    ) -> gpd.GeoDataFrame:
+    
+    if isinstance(sampling_region, gpd.GeoDataFrame):
+        roi_df = sampling_region
+    elif isinstance(sampling_region, str):
+        roi_df = gpd.read_file(sampling_region)
+    elif isinstance(sampling_region, ee.Geometry):
+        # Looking for a better way to do this, this is silly
+        roi_df = gpd.read_file(json.dumps(sampling_region.getInfo()))
+    else:
+       raise ValueError("'sampling_region' must be one of"
+                        "[str, ee.Geometry, gpd.GeoDataFrame]")
+    return roi_df
 
 def sample_random_points(roi: gpd.GeoDataFrame, n_sample: int, rng: np.random.Generator)->pd.DataFrame:
     """Get random points within region of interest."""
