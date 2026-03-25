@@ -34,10 +34,15 @@ jobs:
         uses: docker/metadata-action@11079342065fb7d2c3b37cb799ab6ecc01ad1bb2
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+
+      - name: Set up Docker buildx
+        uses: docker/setup-buildx-action@d08e5c354a6adb9ed34480a06d141179aa583294
+
       - name: Build and push Docker image
         id: push
         uses: docker/build-push-action@de308676347136a77704e0f257298c8f1b30054f
         with:
+          platforms: linux/amd64, linux/arm64
           context: .
           push: true
           tags: ${{ steps.meta.outputs.tags }}
