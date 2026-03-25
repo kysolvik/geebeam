@@ -98,7 +98,6 @@ def run_pipeline(
     # Set up pipeline
     beam_options = PipelineOptions(beam_args,
                                    project=config['project_id'],
-                                   temp_location='gs://aic-fire-amazon/tmp/',
                                    save_main_session=True,
                                    use_public_ips=False
                                    )
