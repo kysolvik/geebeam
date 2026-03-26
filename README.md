@@ -21,6 +21,8 @@ pip install geebeam
 
 ## Examples:
 
+### Running locally:
+
 Here we'll create a burned area mask for 2024 using the MCD64A1 product.
 For example, this could be the target variable for a burn risk model.
 
@@ -81,7 +83,7 @@ geebeam.run_pipeline(
 )
 ```
 
-### DataFlow:
+### Scaling up with DataFlow:
 
 The export process can be scaled to many workers via Google Cloud DataFlow. First write a script containing your `geebeam.run_pipeline()` command. Then execute using the Beam DataFlow runner:
 
@@ -97,7 +99,9 @@ python examples/geebeam_run.py \
     --sdk_container_image=us-docker.pkg.dev/mmacedo-reservoirid/geebeam-public/geebeam:latest
 ```
 
-Note in this case your `output_path` should be a Google Cloud Storage path. If you're running an older version of geebeam, replace "latest" in the sdk_container_image URI with the version number (e.g. v0.1.2). You can also build your own Docker image to run on. More info in the [DataFlow docs](https://docs.cloud.google.com/dataflow/docs/guides/using-custom-containers).
+Note in this case your `output_path` in run_pipeline() should be a Google Cloud Storage path. If you're running an older version of geebeam, replace "latest" in the sdk_container_image URI with the version number (e.g. v0.1.2). You can also build your own Docker image to run on. More info in the [DataFlow docs](https://docs.cloud.google.com/dataflow/docs/guides/using-custom-containers).
+
+See the Apache Beam and Google Cloud DataFlow docs for full documentation, e.g. pipeline command-line options
 
 #### Common DataFlow gotchas
 
