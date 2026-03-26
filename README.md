@@ -79,7 +79,6 @@ geebeam.run_pipeline(
     sampling_region=ee.Geometry.Rectangle(-63.0, -9.0, -56.0, -4.0),
     num_workers=1
 )
-
 ```
 
 ### DataFlow:
@@ -95,10 +94,10 @@ python examples/geebeam_run.py \
     --experiments=use_runner_v2 \
     --temp_location=gs://[your-bucket]/[path_to_temp_dir]
     --machine_type=n2-highmem-2 \
-    --sdk_container_image=ghcr.io/kysolvik/geebeam:latest
+    --sdk_container_image=us-docker.pkg.dev/mmacedo-reservoirid/geebeam-public/geebeam:latest
 ```
 
-Note in this case your `output_path` should be a Google Cloud Storage path. If you're running an older version of geebeam, replace "latest" in the sdk_container_image URL with the version number (e.g. v0.1.2). You can also build your own Docker image to run on.
+Note in this case your `output_path` should be a Google Cloud Storage path. If you're running an older version of geebeam, replace "latest" in the sdk_container_image URI with the version number (e.g. v0.1.2). You can also build your own Docker image to run on. More info in the [DataFlow docs](https://docs.cloud.google.com/dataflow/docs/guides/using-custom-containers).
 
 #### Common DataFlow gotchas
 
@@ -121,7 +120,6 @@ python examples/geebeam_run.py \
 ```
 
 See [DataFlow documentation on specifying network and subnetwork](https://docs.cloud.google.com/dataflow/docs/guides/specifying-networks) for DataFlow jobs.
-
 
 4. For more common errors, see the [Google Cloud DataFlow troubleshooting guide](https://docs.cloud.google.com/dataflow/docs/guides/common-errors).
 
