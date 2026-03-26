@@ -5,7 +5,6 @@ import apache_beam as beam
 from apache_beam.options.pipeline_options import PipelineOptions
 import tensorflow_data_validation as tfdv
 from tfx_bsl.coders import example_coder
-import argparse
 import os
 from google.protobuf.json_format import MessageToJson
 
@@ -34,6 +33,8 @@ def _prepare_run_metadata(config):
 
 def run_pipeline(
         image_list,
+        sampling_region,
+        output_path,
         project: str,
         patch_size: int,
         scale: float,
@@ -43,9 +44,7 @@ def run_pipeline(
         random_seed=None,
         split_processing=False,
         extra_metadata={},
-        output_path=None,
-        sampling_region=None,
-        config=None
+        beam_options_dict={}
         ):
     import logging
 
@@ -53,38 +52,21 @@ def run_pipeline(
 
     rng = np.random.default_rng(random_seed)
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--output_path",
-        required=False,
-        help="Directory to save TFRecord files (local or GCS).",
-    )
-    parser.add_argument(
-        "--sampling_region",
-        required=False,
-        help="Local geopandas-readable file of region to sample from randomly."
-    )
+    # Parses from command line and/or retrieves from dict. Note that dict takes precedent.
+    beam_options = PipelineOptions(beam_options_dict)
 
-    # Beam args are leftover after parsing known args
-    args, beam_args = parser.parse_known_args()
-
-    if args.sampling_region is None:
-        args.sampling_region = sampling_region
-    if args.output_path is None:
-        args.output_path = output_path
-    
-    if config is None:
-        config = {
-            'project_id': project,
-            'patch_size': patch_size,
-            'scale': scale,
-            'n_sample': n_sample,
-            'validation_ratio':validation_ratio,
-            'crs': crs
-        }
+    # Set up configuration dict to pass along
+    config = {
+        'project_id': project,
+        'patch_size': patch_size,
+        'scale': scale,
+        'n_sample': n_sample,
+        'validation_ratio':validation_ratio,
+        'crs': crs
+    }
 
     # Randomly sample points
-    roi = sampler.get_roi(args.sampling_region)
+    roi = sampler.get_roi(sampling_region)
     sampled_points  = sampler.sample_random_points(roi, config['n_sample'], rng)
 
     # Split into training and validation
@@ -96,7 +78,7 @@ def run_pipeline(
     scale_x, scale_y = _prepare_run_metadata(config)
 
     # Set up pipeline
-    beam_options = PipelineOptions(beam_args,
+    beam_options = PipelineOptions(beam_options,
                                    project=config['project_id'],
                                    save_main_session=True,
                                    use_public_ips=False
@@ -157,12 +139,12 @@ def run_pipeline(
             | 'Generate Statistics' >> tfdv.GenerateStatistics()
         )
         stats | 'Write stats' >> tfdv.WriteStatisticsToTFRecord(
-            os.path.join(args.output_path, 'stats.tfrecord'))
+            os.path.join(output_path, 'stats.tfrecord'))
 
         # Write out examples
         (training_examples
          | 'Write training' >> transforms.WriteTFExample(
-             os.path.join(args.output_path, 'training'))
+             os.path.join(output_path, 'training'))
         )
         if config['validation_ratio'] > 0:
             validation_examples = (
@@ -172,7 +154,7 @@ def run_pipeline(
 
             (validation_examples
             | 'Write validation' >> transforms.WriteTFExample(
-                os.path.join(args.output_path, 'validation'))
+                os.path.join(output_path, 'validation'))
             )
 
 
@@ -180,26 +162,26 @@ def run_pipeline(
     # Need to simplify once we decide on one
     # Infer schema
     stats = tfdv.load_statistics(
-        os.path.join(args.output_path, 'stats.tfrecord')
+        os.path.join(output_path, 'stats.tfrecord')
     )
 
     schema = tfdv.infer_schema(stats)
 
     tfdv.write_schema_text(
         schema,
-        os.path.join(args.output_path, 'schema.pbtxt')
+        os.path.join(output_path, 'schema.pbtxt')
     )
 
     # Also write as pbtxt, easier to read
     tfdv.write_stats_text(
         stats,
-        os.path.join(args.output_path, 'stats.pbtxt')
+        os.path.join(output_path, 'stats.pbtxt')
     )
 
     # Also write stats and schema as jsons
-    out_schema_json = os.path.join(args.output_path, 'schema.json')
-    out_stats_json = os.path.join(args.output_path, 'stats.json')
-    if args.output_path.startswith('gs://'):
+    out_schema_json = os.path.join(output_path, 'schema.json')
+    out_stats_json = os.path.join(output_path, 'stats.json')
+    if output_path.startswith('gs://'):
         transforms.write_json_to_gcs(MessageToJson(schema), out_schema_json)
         transforms.write_json_to_gcs(MessageToJson(stats), out_stats_json)
     else:

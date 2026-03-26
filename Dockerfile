@@ -1,4 +1,4 @@
-FROM apache/beam_python3.11_sdk:2.70.0
+FROM apache/beam_python3.11_sdk:2.71.0
 
 # Install package
 RUN pip install git+https://github.com/kysolvik/geebeam@main
