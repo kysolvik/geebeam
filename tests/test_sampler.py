@@ -19,16 +19,15 @@ def test_sample_random_points():
     
     assert isinstance(result, pd.DataFrame)
     assert result.shape == (2, 2)
-    assert 'lat' in result.columns
-    assert 'lon' in result.columns
-    # x is lon, y is lat in get_coordinates() typically
-    assert result.iloc[0]['lon'] == 10.0
-    assert result.iloc[0]['lat'] == 50.0
+    assert 'y' in result.columns
+    assert 'x' in result.columns
+    assert result.iloc[0]['x'] == 10.0
+    assert result.iloc[0]['y'] == 50.0
 
 def test_split_train_validation():
     df = pd.DataFrame({
-        'lat': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-        'lon': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        'y': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+        'x': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     })
     rng = np.random.default_rng(42)
     

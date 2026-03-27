@@ -54,7 +54,7 @@ geebeam.run_pipeline(
     scale=500, # Final export resolution in meters
     n_sample=10, # Number of tiles to sample
     validation_ratio=0.2, # Fraction to select as validation data
-    output_path='./test/',
+    output_path='./test_tf_data/',
     sampling_region=ee.Geometry.Rectangle(-63.0, -9.0, -56.0, -4.0)
 )
 ```
@@ -77,7 +77,7 @@ geebeam.run_pipeline(
     scale=500,
     n_sample=10,
     validation_ratio=0.2,
-    output_path='./test/',
+    output_path='./test_tf_data/',
     sampling_region=ee.Geometry.Rectangle(-63.0, -9.0, -56.0, -4.0),
     num_workers=1
 )

@@ -13,8 +13,8 @@ def test_dict_to_example():
     element = {
         'metadata': {
             'id': 1,
-            'lat': 10.0,
-            'lon': 20.0,
+            'y': 10.0,
+            'x': 20.0,
             'extra': 0.5
         },
         'array': {
@@ -30,8 +30,8 @@ def test_dict_to_example():
     
     features = example.features.feature
     assert features['md_id'].int64_list.value[0] == 1
-    assert features['md_lat'].float_list.value[0] == 10.0
-    assert features['md_lon'].float_list.value[0] == 20.0
+    assert features['md_y'].float_list.value[0] == 10.0
+    assert features['md_x'].float_list.value[0] == 20.0
     assert features['md_extra'].float_list.value[0] == 0.5
     assert list(features['im_band1'].float_list.value) == [1.0, 2.0, 3.0, 4.0]
 
@@ -75,7 +75,7 @@ def test_ee_compute_patch(mock_from_json, mock_compute_pixels, mock_ee_init):
     patch_fn = EEComputePatch(config, serialized_image, scale_x, scale_y, band_groups)
     patch_fn.setup() # Initialize EE
     
-    point = {'id': 1, 'lat': 10.0, 'lon': 20.0}
+    point = {'id': 1, 'y': 10.0, 'x': 20.0}
     results = list(patch_fn.process(point))
     print(results)
     

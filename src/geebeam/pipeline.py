@@ -1,5 +1,8 @@
 """Prepare and run Beam pipeline to download image 'chips' from Earth Engine"""
+
 import ee
+import geopandas as gpd
+import pandas as pd
 import numpy as np
 import apache_beam as beam
 from apache_beam.options.pipeline_options import PipelineOptions
@@ -32,28 +35,44 @@ def _prepare_run_metadata(config):
     return scale_x, scale_y
 
 def run_pipeline(
-        image_list,
-        sampling_region,
-        output_path,
+        image_list: list[ee.Image],
+        output_path: str,
         project: str,
         patch_size: int,
         scale: float,
         n_sample: int,
-        validation_ratio: float=0.2,
-        crs='EPSG:4326',
-        random_seed=None,
-        split_processing=False,
-        extra_metadata={},
-        beam_options_dict={}
-        ):
+        sampling_region: str | gpd.GeoDataFrame | ee.Geometry | None = None,
+        sampling_points: pd.DataFrame | gpd.GeoDataFrame | ee.Geometry | None = None,
+        validation_ratio: float = 0.2,
+        crs: str = 'EPSG:4326',
+        random_seed: int = None,
+        split_processing: bool = False,
+        extra_metadata: dict = {},
+        beam_options_dict: dict[str] = {}
+        ) -> None:
+    """Run a Beam pipeline to download image chips from Earth Engine.
+
+    Args:
+        image_list: A list of image identifiers to process.
+        sampling_region: The region for sampling images.
+        sampling_points: Locations to sample from, specifying upper-left of box.
+        output_path: The path where output will be saved.
+        project: The Google Cloud project ID.
+        patch_size: The size of the patches to be processed.
+        scale: The scale factor for image processing.
+        n_sample: The number of samples to take.
+        validation_ratio: The ratio of data to use for validation. Defaults to 0.2.
+        crs: The coordinate reference system. Defaults to 'EPSG:4326'.
+        random_seed: Seed for random number generation. Defaults to None.
+        split_processing: Flag to indicate if processing should be split. Defaults to False.
+        extra_metadata: Additional metadata to include. Defaults to an empty dictionary.
+        beam_options_dict: Options for the Beam pipeline. Defaults to an empty dictionary.
+    """
     import logging
 
     logging.getLogger().setLevel(logging.INFO)
 
     rng = np.random.default_rng(random_seed)
-
-    # Parses from command line and/or retrieves from dict. Note that dict takes precedent.
-    beam_options = PipelineOptions(beam_options_dict)
 
     # Set up configuration dict to pass along
     config = {
@@ -65,9 +84,18 @@ def run_pipeline(
         'crs': crs
     }
 
-    # Randomly sample points
-    roi = sampler.get_roi(sampling_region)
-    sampled_points  = sampler.sample_random_points(roi, config['n_sample'], rng)
+    # Parses from command line and/or retrieves from dict. Note that dict takes precedent.
+    beam_options = PipelineOptions(beam_options_dict,
+                                   project=config['project_id'],
+                                   save_main_session=True,
+                                   )
+
+    # Get sample points
+    if sampling_points is not None:
+        sampled_points = sampler.process_sampling_points(sampling_points, target_crs=config['crs'])
+    else:
+        roi = sampler.get_roi(sampling_region, image_list, target_crs=config['crs'])
+        sampled_points  = sampler.sample_random_points(roi, config['n_sample'], rng)
 
     # Split into training and validation
     input_records = sampler.split_train_validation(
@@ -78,11 +106,6 @@ def run_pipeline(
     scale_x, scale_y = _prepare_run_metadata(config)
 
     # Set up pipeline
-    beam_options = PipelineOptions(beam_options,
-                                   project=config['project_id'],
-                                   save_main_session=True,
-                                   use_public_ips=False
-                                   )
 
     # Check if a local runner
     is_local = _check_if_localrunner(beam_options)
