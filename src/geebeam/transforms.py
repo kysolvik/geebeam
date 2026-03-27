@@ -46,11 +46,11 @@ def dict_to_example(element):
     # First add metadata
     md_dict = {
         'md_id': _int64_feature(element['metadata']['id']),
-        'md_lat': _float_feature(element['metadata']['lat']),
-        'md_lon': _float_feature(element['metadata']['lon']),
+        'md_y': _float_feature(element['metadata']['y']),
+        'md_x': _float_feature(element['metadata']['x']),
         }
     for md_key in element['metadata'].keys():
-        if md_key not in ['id','lat','lon', 'split']:
+        if md_key not in ['id','y','x', 'split']:
             md_dict['md_' + md_key] = tf.train.Feature(float_list=
                 tf.train.FloatList(
                     value = convert_to_iterable(element['metadata'][md_key])
@@ -133,10 +133,10 @@ class EEComputePatch(beam.DoFn):
                 'affineTransform': {
                     'scaleX': self.scale_x,
                     'shearX': 0,
-                    'translateX': point['lon'],
+                    'translateX': point['x'],
                     'shearY': 0,
                     'scaleY': self.scale_y,
-                    'translateY': point['lat']
+                    'translateY': point['y']
                 },
                 'crsCode': 'EPSG:4326',
             },
