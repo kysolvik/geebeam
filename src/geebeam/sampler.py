@@ -72,6 +72,7 @@ def process_sampling_points(
         if 'x' not in sampling_points.columns or 'y' not in sampling_points.columns:
             raise ValueError('If provided as pd.DataFrame, sampling_points must have columns '
                              '`x` and `y` with coordinates for sampling in target crs.')
+        points_df = sampling_points
     elif isinstance(sampling_points, gpd.GeoDataFrame):
         if sampling_points.crs != target_crs:
             raise ValueError('sampling_points projection does not match target_crs.')
