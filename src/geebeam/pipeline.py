@@ -1,5 +1,6 @@
 """Prepare and run Beam pipeline to download image 'chips' from Earth Engine"""
 
+import warnings
 import ee
 import geopandas as gpd
 import pandas as pd
@@ -14,9 +15,9 @@ from google.protobuf.json_format import MessageToJson
 from geebeam import ee_utils, sampler, transforms
 
 
-def _check_if_localrunner(beam_options):
+def _check_if_localrunner(pipeline_options):
     """Fixes gRPC timeout issue for local runners."""
-    runner = beam_options.get_all_options()['runner']
+    runner = pipeline_options.get_all_options()['runner']
     if runner is None or runner in ['DirectRunner', 'PrismRunner']:
         return True
     else:
@@ -48,7 +49,7 @@ def run_pipeline(
         random_seed: int = None,
         split_processing: bool = False,
         extra_metadata: dict = {},
-        beam_options_dict: dict[str] = {}
+        beam_options: dict[str] | list[str] | None = None
         ) -> None:
     """Run a Beam pipeline to download image chips from Earth Engine.
 
@@ -85,10 +86,25 @@ def run_pipeline(
     }
 
     # Parses from command line and/or retrieves from dict. Note that dict takes precedent.
-    beam_options = PipelineOptions(beam_options_dict,
-                                   project=config['project_id'],
-                                   save_main_session=True,
-                                   )
+    if isinstance(beam_options, dict):
+        pipeline_options = PipelineOptions(
+            **beam_options,
+            project=config['project_id'],
+            save_main_session=True,
+            )
+    elif isinstance(beam_options, list):
+        warnings.warn('Creating PipelineOptions from beam_options list.'
+                      ' Ignores command-line beam options.')
+        pipeline_options = PipelineOptions(
+            beam_options,
+            project=config['project_id'],
+            save_main_session=True,
+            )
+    else:
+        pipeline_options = PipelineOptions(
+            project=config['project_id'],
+            save_main_session=True,
+            )
 
     # Get sample points
     if sampling_points is not None:
@@ -108,7 +124,7 @@ def run_pipeline(
     # Set up pipeline
 
     # Check if a local runner
-    is_local = _check_if_localrunner(beam_options)
+    is_local = _check_if_localrunner(pipeline_options)
 
     # Prepare and serialize inputs
     # band_groups is a list of lists containing bands to export
@@ -118,7 +134,7 @@ def run_pipeline(
     serialized_image = ee_utils.serialize(prepped_image)
 
     # Execute pipeline
-    with beam.Pipeline(options=beam_options) as pipeline:
+    with beam.Pipeline(options=pipeline_options) as pipeline:
 
         points = pipeline | 'Create points' >> beam.Create(input_records)
 
