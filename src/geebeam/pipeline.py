@@ -91,7 +91,7 @@ def run_pipeline(
     if sampling_points is not None:
         sampled_points = sampler.process_sampling_points(sampling_points, target_crs=config['crs'])
     else:
-        roi = sampler.get_roi(sampling_region, target_crs=config['crs'])
+        roi = sampler.get_roi(sampling_region, image_list, target_crs=config['crs'])
         sampled_points  = sampler.sample_random_points(roi, config['n_sample'], rng)
 
     # Split into training and validation
