@@ -55,7 +55,7 @@ def run_pipeline(
     Args:
         image_list: A list of image identifiers to process.
         sampling_region: The region for sampling images.
-        sampling_points: Center-points of locations to sample from.
+        sampling_points: Locations to sample from, specifying upper-left of box.
         output_path: The path where output will be saved.
         project: The Google Cloud project ID.
         patch_size: The size of the patches to be processed.
