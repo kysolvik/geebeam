@@ -74,9 +74,6 @@ def run_pipeline(
 
     rng = np.random.default_rng(random_seed)
 
-    # Parses from command line and/or retrieves from dict. Note that dict takes precedent.
-    beam_options = PipelineOptions(beam_options_dict)
-
     # Set up configuration dict to pass along
     config = {
         'project_id': project,
@@ -86,6 +83,12 @@ def run_pipeline(
         'validation_ratio':validation_ratio,
         'crs': crs
     }
+
+    # Parses from command line and/or retrieves from dict. Note that dict takes precedent.
+    beam_options = PipelineOptions(beam_options_dict,
+                                   project=config['project_id'],
+                                   save_main_session=True,
+                                   )
 
     # Get sample points
     if sampling_points is not None:
@@ -103,11 +106,6 @@ def run_pipeline(
     scale_x, scale_y = _prepare_run_metadata(config)
 
     # Set up pipeline
-    beam_options = PipelineOptions(beam_options,
-                                   project=config['project_id'],
-                                   save_main_session=True,
-                                   use_public_ips=False
-                                   )
 
     # Check if a local runner
     is_local = _check_if_localrunner(beam_options)
