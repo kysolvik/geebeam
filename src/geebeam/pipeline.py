@@ -133,6 +133,12 @@ def run_pipeline(
     prepped_image, band_groups = ee_utils.build_prepped_image(image_list, split_processing=split_processing)
     serialized_image = ee_utils.serialize(prepped_image)
 
+    # Write sidecar schema before pipeline execution
+    all_bands = [band for group in band_groups for band in group]
+    extra_keys = list(extra_metadata.keys())
+    transforms.write_sidecar_schema(output_path, all_bands, extra_keys,
+                                    is_gcs=output_path.startswith('gs://'))
+
     # Execute pipeline
     with beam.Pipeline(options=pipeline_options) as pipeline:
 

@@ -3,6 +3,8 @@
 import logging
 import io
 import time
+import json
+import os
 
 import numpy as np
 import tensorflow as tf
@@ -40,6 +42,25 @@ def convert_to_iterable(val):
         return [val]
     else:
         return val
+
+def write_sidecar_schema(output_path, band_names, extra_metadata_keys, is_gcs):
+    """Write a sidecar schema JSON describing the expected features."""
+    schema_dict = {"features": {}}
+    schema_dict["features"]["md_id"] = "int64"
+    schema_dict["features"]["md_y"] = "float"
+    schema_dict["features"]["md_x"] = "float"
+    schema_dict["features"]["md_split"] = "string"
+    for key in extra_metadata_keys:
+        schema_dict["features"]["md_" + key] = "float"
+    for band in band_names:
+        schema_dict["features"]["im_" + band] = "float"
+    
+    json_string = json.dumps(schema_dict, indent=2)
+    schema_path = os.path.join(output_path, 'sidecar_schema.json')
+    if is_gcs:
+        write_json_to_gcs(json_string, schema_path)
+    else:
+        write_json_to_local(json_string, schema_path)
 
 def dict_to_example(element):
     """"Convert structured numpy array to tf.Example proto."""
