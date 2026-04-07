@@ -1,4 +1,4 @@
-"""Writer for raw tfrecords (with statistics and schema sidecar files)"""
+"""Pipeline for writing to raw tfrecords (with statistics and schema sidecar files)"""
 
 import os
 import apache_beam as beam
@@ -19,8 +19,7 @@ def run_tfrecord_export(
     extra_metadata: dict,
     is_local: bool,
     pipeline_options: PipelineOptions
-
-):
+    ):
     with beam.Pipeline(options=pipeline_options) as pipeline:
 
         points = pipeline | 'Create points' >> beam.Create(input_records)
