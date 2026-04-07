@@ -155,14 +155,14 @@ class EEComputePatch(beam.DoFn):
 
     def setup(self):
         print(f"Initializing Earth Engine for project: {self.config['project_id']}")
-        logging.warning("EE setup: starting")
+        logging.info("EE setup: starting")
         ee.Initialize(project=self.config['project_id'],
                       opt_url='https://earthengine-highvolume.googleapis.com')
-        logging.warning("EE setup: finished")
+        logging.info("EE setup: finished")
 
     def process(self, point):
         """Compute a patch of pixel, with upper-left corner defined by the coords."""
-        logging.warning(f"EE start {point['id']}")
+        logging.info(f"EE start {point['id']}")
         t0 = time.time()
         out_ars = ee_utils.get_pixels_allbands(
             im=ee_utils.deserialize(self.serialized_image),
@@ -176,7 +176,7 @@ class EEComputePatch(beam.DoFn):
 
         out_dict = {'metadata': dict(point)}
         out_dict['array'] = join_struct_arrays_to_dict(out_ars)
-        logging.warning(
+        logging.info(
             f"EE end {point['id']}, took {time.time() - t0:.1f}s"
         )
         yield out_dict

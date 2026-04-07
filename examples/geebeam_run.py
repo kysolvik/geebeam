@@ -22,6 +22,7 @@ burned_2024 = (ee.ImageCollection('MODIS/061/MCD64A1')
 # Building and triggering the pipeline is done with a single command:
 geebeam.run_pipeline(
     image_list = [burned_2024],
+    output_type='tfrecord',
     project=PROJECT_ID,
     patch_size=128, # Pixel dimensions in each direction
     scale=500, # Final export resolution in meters
