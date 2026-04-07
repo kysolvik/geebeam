@@ -1,11 +1,10 @@
 """Pipeline for tensorflow-dataset custom dataset"""
 
 import tensorflow_datasets as tfds
-import tensorflow_data_validation as tfdv
 import tensorflow as tf
-from geebeam import transforms
 from apache_beam.options.pipeline_options import PipelineOptions
 
+from geebeam import transforms
 
 class _GeebeamBuilderConfig(tfds.core.BuilderConfig):
     """Configuration object for builder."""
@@ -32,7 +31,7 @@ class _GeebeamBuilderConfig(tfds.core.BuilderConfig):
         self.tags = []
 
 
-class GeebeamDataset(tfds.core.GeneratorBasedBuilder):
+class Geebeam(tfds.core.GeneratorBasedBuilder):
     """TFDS Builder for geebeam Earth Engine image chips dataset."""
 
     def _info(self):
@@ -72,7 +71,6 @@ class GeebeamDataset(tfds.core.GeneratorBasedBuilder):
     def _split_generators(self, dl_manager):
         """Define splits based on training/validation ratio."""
         config = self.builder_config
-        print(config)
         
         # Get input data from config
         input_records = config.input_records
@@ -81,9 +79,7 @@ class GeebeamDataset(tfds.core.GeneratorBasedBuilder):
         scale_x = config.scale_x
         scale_y = config.scale_y
         
-        if config.validation_ratio > 0:
-            return {
-                'train': self._generate_examples(
+        training_data = self._generate_examples(
                     input_records=input_records,
                     serialized_image=serialized_image,
                     scale_x=scale_x,
@@ -91,7 +87,11 @@ class GeebeamDataset(tfds.core.GeneratorBasedBuilder):
                     config=config,
                     band_groups=band_groups,
                     split='train'
-                ),
+                )
+        # Return examples, generating validation examples if necessary
+        if config.validation_ratio > 0:
+            return {
+                'train': training_data,
                 'validation': self._generate_examples(
                     input_records=input_records,
                     serialized_image=serialized_image,
@@ -104,15 +104,7 @@ class GeebeamDataset(tfds.core.GeneratorBasedBuilder):
             }
         else:
             return {
-                'all': self._generate_examples(
-                    input_records=input_records,
-                    serialized_image=serialized_image,
-                    scale_x=scale_x,
-                    scale_y=scale_y,
-                    config=config,
-                    band_groups=band_groups,
-                    split='train'
-                )
+                'train': training_data
             }
 
 
@@ -195,12 +187,14 @@ def run_tfds_export(
     scale_x: float,
     scale_y: float,
     extra_metadata: dict,
-    pipeline_options: PipelineOptions
+    pipeline_options: PipelineOptions,
+    dataset_name: str,
+    dataset_version: str,
     ):
 
     builder_config = _GeebeamBuilderConfig(
-        name='foobar',
-        version='1.0.0',
+        name=dataset_name,
+        version=dataset_version,
         input_records=input_records,
         serialized_image=serialized_image,
         band_groups=band_groups,
@@ -215,7 +209,7 @@ def run_tfds_export(
     )
 
     # Create builder
-    builder = GeebeamDataset(
+    builder = Geebeam(
         data_dir=output_path,
         config=builder_config,
     )
