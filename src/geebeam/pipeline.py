@@ -5,11 +5,7 @@ import ee
 import geopandas as gpd
 import pandas as pd
 import numpy as np
-import apache_beam as beam
 from apache_beam.options.pipeline_options import PipelineOptions
-import tensorflow_data_validation as tfdv
-from tfx_bsl.coders import example_coder
-import os
 
 from geebeam import ee_utils, sampler, transforms
 
@@ -37,6 +33,7 @@ def _prepare_run_metadata(config):
 def run_pipeline(
         image_list: list[ee.Image],
         output_path: str,
+        output_type: str,
         project: str,
         patch_size: int,
         scale: float,
@@ -57,6 +54,7 @@ def run_pipeline(
         sampling_region: The region for sampling images.
         sampling_points: Locations to sample from, specifying upper-left of box.
         output_path: The path where output will be saved.
+        output_type: 'tfrecord' (raw tfrecords) or 'tfds' (tensorflow-dataset).
         project: The Google Cloud project ID.
         patch_size: The size of the patches to be processed.
         scale: The scale factor for image processing.
@@ -120,8 +118,6 @@ def run_pipeline(
     # Pre-run info:
     scale_x, scale_y = _prepare_run_metadata(config)
 
-    # Set up pipeline
-
     # Check if a local runner
     is_local = _check_if_localrunner(pipeline_options)
 
@@ -131,86 +127,41 @@ def run_pipeline(
     # if split_processing = True,  contains separate band_lists for each image in image_list
     prepped_image, band_groups, all_bands = ee_utils.build_prepped_image(image_list, split_processing=split_processing)
     serialized_image = ee_utils.serialize(prepped_image)
-    print(band_groups)
-    print(all_bands)
 
     # Write sidecar schema before pipeline execution
     extra_keys = list(extra_metadata.keys())
     transforms.write_sidecar_schema(output_path, all_bands, extra_keys,
                                     is_gcs=output_path.startswith('gs://'))
 
-    # Execute pipeline
-    with beam.Pipeline(options=pipeline_options) as pipeline:
-
-        points = pipeline | 'Create points' >> beam.Create(input_records)
-
-        if is_local:
-            batches = (
-                points
-                | 'Add Dummy Key' >> beam.Map(lambda x: (None, x))
-                | 'Reshuffle' >> beam.Reshuffle()
-                | 'Force Single Batches' >> beam.GroupIntoBatches(batch_size=1)
-                | 'Extract' >> beam.FlatMap(lambda x: x[1])
-            )
-        else:
-            batches = points
-
-        training_data, validation_data = (
-            batches
-            | 'Get patch' >> beam.ParDo(transforms.EEComputePatch(
-                config,
-                serialized_image,
-                scale_x,
-                scale_y,
-                band_groups
-                ))
-            | 'Add metadata' >> beam.ParDo(transforms.AddMetadata(extra_metadata))
-            | 'Split dataset' >> beam.Partition(transforms.split_dataset, 2)
+    # Execute pipeline based on output type:
+    if output_type == 'tfrecord':
+        from geebeam import tfrecord_writer
+        tfrecord_writer.run_tfrecord_export(
+            input_records=input_records,
+            output_path=output_path,
+            config=config,
+            serialized_image=serialized_image,
+            band_groups=band_groups,
+            scale_x=scale_x,
+            scale_y=scale_y,
+            extra_metadata=extra_metadata,
+            is_local=is_local,
+            pipeline_options=pipeline_options
         )
-
-        # Convert to TF examples
-        training_examples = (
-            training_data
-            | 'Train to tf.Example' >> beam.Map(transforms.dict_to_example)
+    elif output_type == 'tfds':
+        from geebeam import tfds_writer
+        tfds_writer.run_tfds_export(
+            input_records=input_records,
+            output_path=output_path,
+            config=config,
+            serialized_image=serialized_image,
+            band_groups=band_groups,
+            scale_x=scale_x,
+            scale_y=scale_y,
+            extra_metadata=extra_metadata,
+            pipeline_options=pipeline_options
         )
-        # Calculate stats on training data
-        decoder = example_coder.ExamplesToRecordBatchDecoder()
-        stats = (
-            training_examples
-            | 'Batch' >> beam.BatchElements(
-                min_batch_size=10,
-                max_batch_size=100)
-            | 'Decode to arrow' >> beam.Map(lambda b: decoder.DecodeBatch(b))
-            | 'Generate Statistics' >> tfdv.GenerateStatistics()
-        )
-        stats | 'Write stats' >> tfdv.WriteStatisticsToTFRecord(
-            os.path.join(output_path, 'stats.tfrecord'))
-
-        # Write out examples
-        (training_examples
-         | 'Write training' >> transforms.WriteTFExample(
-             os.path.join(output_path, 'training'))
-        )
-        if config['validation_ratio'] > 0:
-            validation_examples = (
-                validation_data
-                | 'Val to tf.Example' >> beam.Map(transforms.dict_to_example)
-            )
-
-            (validation_examples
-            | 'Write validation' >> transforms.WriteTFExample(
-                os.path.join(output_path, 'validation'))
-            )
-
-
-    # Infer schema and write as separate pbtxt
-    stats = tfdv.load_statistics(
-        os.path.join(output_path, 'stats.tfrecord')
-    )
-
-    schema = tfdv.infer_schema(stats)
-
-    tfdv.write_schema_text(
-        schema,
-        os.path.join(output_path, 'schema.pbtxt')
-    )
+    elif output_type == 'tif':
+        raise ValueError('tif writer not yet implemented.')
+    else:
+        raise ValueError(f"output_type {output_type} not implemented. Options are ['tfds','tfrecord']")
