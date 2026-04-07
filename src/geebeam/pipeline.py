@@ -45,7 +45,9 @@ def run_pipeline(
         random_seed: int = None,
         split_processing: bool = False,
         extra_metadata: dict = {},
-        beam_options: dict[str] | list[str] | None = None
+        beam_options: dict[str] | list[str] | None = None,
+        dataset_version: str = '1.0.0',
+        dataset_name: str = 'geebeam_dataset'
         ) -> None:
     """Run a Beam pipeline to download image chips from Earth Engine.
 
@@ -160,7 +162,9 @@ def run_pipeline(
             scale_x=scale_x,
             scale_y=scale_y,
             extra_metadata=extra_metadata,
-            pipeline_options=pipeline_options
+            pipeline_options=pipeline_options,
+            dataset_name=dataset_name,
+            dataset_version=dataset_version
         )
     elif output_type == 'tif':
         raise ValueError('tif writer not yet implemented.')
