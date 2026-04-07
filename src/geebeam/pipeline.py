@@ -130,11 +130,12 @@ def run_pipeline(
     # band_groups is a list of lists containing bands to export
     # if split_processing = False, will contain one list with all bands
     # if split_processing = True,  contains separate band_lists for each image in image_list
-    prepped_image, band_groups = ee_utils.build_prepped_image(image_list, split_processing=split_processing)
+    prepped_image, band_groups, all_bands = ee_utils.build_prepped_image(image_list, split_processing=split_processing)
     serialized_image = ee_utils.serialize(prepped_image)
+    print(band_groups)
+    print(all_bands)
 
     # Write sidecar schema before pipeline execution
-    all_bands = [band for group in band_groups for band in group]
     extra_keys = list(extra_metadata.keys())
     transforms.write_sidecar_schema(output_path, all_bands, extra_keys,
                                     is_gcs=output_path.startswith('gs://'))
@@ -203,9 +204,7 @@ def run_pipeline(
             )
 
 
-    # NOTE: testing a few different formats.
-    # Need to simplify once we decide on one
-    # Infer schema
+    # Infer schema and write as separate pbtxt
     stats = tfdv.load_statistics(
         os.path.join(output_path, 'stats.tfrecord')
     )
@@ -216,21 +215,3 @@ def run_pipeline(
         schema,
         os.path.join(output_path, 'schema.pbtxt')
     )
-
-    # Also write as pbtxt, easier to read
-    tfdv.write_stats_text(
-        stats,
-        os.path.join(output_path, 'stats.pbtxt')
-    )
-
-    # Also write stats and schema as jsons
-    out_schema_json = os.path.join(output_path, 'schema.json')
-    out_stats_json = os.path.join(output_path, 'stats.json')
-    if output_path.startswith('gs://'):
-        transforms.write_json_to_gcs(MessageToJson(schema), out_schema_json)
-        transforms.write_json_to_gcs(MessageToJson(stats), out_stats_json)
-    else:
-        transforms.write_json_to_local(MessageToJson(schema), out_schema_json)
-        transforms.write_json_to_local(MessageToJson(stats), out_stats_json)
-
-

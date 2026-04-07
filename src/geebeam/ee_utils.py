@@ -36,8 +36,7 @@ def build_prepped_image(input_list, split_processing=False):
         band_groups = [band_names_flat]
     # Final prepped image
     prepped_im = ee.ImageCollection(input_list).toBands().rename(band_names_flat)
-    return prepped_im, band_groups
-
+    return prepped_im, band_groups, band_names_flat.getInfo()
 
 def list_to_im(input_list):
     prepped_im, _ = build_prepped_image(input_list)
