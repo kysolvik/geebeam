@@ -1,7 +1,11 @@
 """
 Utilities for cleaning, combining, and serializing/deserializing EE objects.
 """
+
+import io
+
 import ee
+import numpy as np
 
 def deserialize(obj_json):
     """Deserialize Earth Engine JSON DAG"""
@@ -38,3 +42,54 @@ def build_prepped_image(input_list, split_processing=False):
 def list_to_im(input_list):
     prepped_im, _ = build_prepped_image(input_list)
     return prepped_im
+
+def get_pixels(im, point, patch_size, scale_x, scale_y, crs_code):
+    # Make a request object.
+    request = {
+        'expression': im,
+        'fileFormat': 'NPY',
+        'grid': {
+            'dimensions': {
+                'width': patch_size,
+                'height': patch_size
+            },
+            'affineTransform': {
+                'scaleX': scale_x,
+                'shearX': 0,
+                'translateX': point['x'],
+                'shearY': 0,
+                'scaleY': scale_y,
+                'translateY': point['y']
+            },
+            'crsCode': crs_code
+        },
+    }
+
+    raw = ee.data.computePixels(request)
+
+    if not raw:
+        raise RuntimeError("Empty EE response")
+
+    try:
+        arr = np.load(io.BytesIO(raw), allow_pickle=True)
+    except Exception as e:
+        raise RuntimeError(f"Failed to load NPY for coords {point['id']}") from e
+
+    return arr
+
+def get_pixels_allbands(im, band_groups, point, patch_size, scale_x, scale_y, crs_code):
+    """Get pixels for all groups of bands"""
+    out_ars = []
+    for band_list in band_groups:
+        prepped_image = im.select(band_list)
+        out_ars.append(
+            get_pixels(
+            im=prepped_image,
+            point=point,
+            patch_size=patch_size,
+            scale_x=scale_x,
+            scale_y=scale_y,
+            crs_code=crs_code
+            )
+        )
+    return out_ars

@@ -12,6 +12,8 @@ import ee
 import apache_beam as beam
 from apache_beam.io.gcp.gcsio import GcsIO
 
+from geebeam import ee_utils
+
 def _bytes_feature(value):
     """Returns a bytes_list from a string / byte."""
     return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
@@ -54,7 +56,7 @@ def write_sidecar_schema(output_path, band_names, extra_metadata_keys, is_gcs):
         schema_dict["features"]["md_" + key] = "float"
     for band in band_names:
         schema_dict["features"]["im_" + band] = "float"
-    
+
     json_string = json.dumps(schema_dict, indent=2)
     schema_path = os.path.join(output_path, 'sidecar_schema.json')
     if is_gcs:
@@ -110,6 +112,24 @@ def split_dataset(element, n_partitions) -> int:
     }
     return split_mappings[element['metadata']['split']]
 
+def join_structured_arrays(array_list):
+    """Join structured array along features axis"""
+    template = array_list[0]
+    new_dtype = sum([a.dtype.descr for a in array_list], [])
+    merged = np.empty(template.shape, dtype=new_dtype)
+    for a in array_list:
+        for feat in a.dtype.names:
+            merged[feat] = a[feat]
+    return merged
+
+def join_struct_arrays_to_dict(array_list):
+    """Join structured array along features axis, return as dict"""
+    merged_dict = {}
+    for a in array_list:
+        for feat in a.dtype.names:
+            merged_dict[feat] = a[feat]
+    return merged_dict
+
 
 class EEComputePatch(beam.DoFn):
     """DoFn() for computing EE patch
@@ -138,72 +158,22 @@ class EEComputePatch(beam.DoFn):
                       opt_url='https://earthengine-highvolume.googleapis.com')
         logging.warning("EE setup: finished")
 
-    def deserialize(self, obj_json):
-        return ee.deserializer.fromJSON(obj_json)
-
-    def _get_pixels(self, im, point):
-        # Make a request object.
-        request = {
-            'expression': im,
-            'fileFormat': 'NPY',
-            'grid': {
-                'dimensions': {
-                    'width': self.config['patch_size'],
-                    'height':self.config['patch_size']
-                },
-                'affineTransform': {
-                    'scaleX': self.scale_x,
-                    'shearX': 0,
-                    'translateX': point['x'],
-                    'shearY': 0,
-                    'scaleY': self.scale_y,
-                    'translateY': point['y']
-                },
-                'crsCode': 'EPSG:4326',
-            },
-        }
-
-        raw = ee.data.computePixels(request)
-
-        if not raw:
-            raise RuntimeError("Empty EE response")
-
-        try:
-            arr = np.load(io.BytesIO(raw), allow_pickle=True)
-        except Exception as e:
-            raise RuntimeError(f"Failed to load NPY for coords {point['id']}") from e
-
-        return arr
-
-    def _join_structured_arrays(self, array_list):
-        """Join structured array along features axis"""
-        template = array_list[0]
-        new_dtype = sum([a.dtype.descr for a in array_list], [])
-        merged = np.empty(template.shape, dtype=new_dtype)
-        for a in array_list:
-            for feat in a.dtype.names:
-                merged[feat] = a[feat]
-        return merged
-
-    def _join_struct_arrays_to_dict(self, array_list):
-        """Join structured array along features axis, return as dict"""
-        merged_dict = {}
-        for a in array_list:
-            for feat in a.dtype.names:
-                merged_dict[feat] = a[feat]
-        return merged_dict
-
     def process(self, point):
         """Compute a patch of pixel, with upper-left corner defined by the coords."""
         logging.warning(f"EE start {point['id']}")
         t0 = time.time()
-        out_ars = []
-        for band_list in self.band_groups:
-            prepped_image = self.deserialize(self.serialized_image).select(band_list)
-            out_ars.append(self._get_pixels(prepped_image, point))
+        out_ars = ee_utils.get_pixels_allbands(
+            im=ee_utils.deserialize(self.serialized_image),
+            band_groups=self.band_groups,
+            point=point,
+            patch_size=self.config['patch_size'],
+            scale_x=self.scale_x,
+            scale_y=self.scale_y,
+            crs_code = self.config['crs']
+            )
 
         out_dict = {'metadata': dict(point)}
-        out_dict['array'] = self._join_struct_arrays_to_dict(out_ars)
+        out_dict['array'] = join_struct_arrays_to_dict(out_ars)
         logging.warning(
             f"EE end {point['id']}, took {time.time() - t0:.1f}s"
         )
