@@ -58,10 +58,13 @@ def write_sidecar_schema(output_path, band_names, extra_metadata_keys, is_gcs):
         schema_dict["features"]["im_" + band] = "float"
 
     json_string = json.dumps(schema_dict, indent=2)
-    schema_path = os.path.join(output_path, 'sidecar_schema.json')
+    schema_path = os.path.join(output_path, 'schema.json')
     if is_gcs:
         write_json_to_gcs(json_string, schema_path)
     else:
+        # Check if diretory exists
+        if not os.path.isdir(output_path):
+            os.makedirs(output_path)
         write_json_to_local(json_string, schema_path)
 
 def dict_to_example(element):
