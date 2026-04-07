@@ -10,7 +10,6 @@ from apache_beam.options.pipeline_options import PipelineOptions
 import tensorflow_data_validation as tfdv
 from tfx_bsl.coders import example_coder
 import os
-from google.protobuf.json_format import MessageToJson
 
 from geebeam import ee_utils, sampler, transforms
 

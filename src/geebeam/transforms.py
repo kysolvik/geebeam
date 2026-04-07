@@ -1,7 +1,6 @@
 """Beam transforms and related utilities"""
 
 import logging
-import io
 import time
 import json
 import os
