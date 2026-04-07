@@ -3,6 +3,7 @@
 import tensorflow_datasets as tfds
 import tensorflow as tf
 from apache_beam.options.pipeline_options import PipelineOptions
+import numpy as np
 
 from geebeam import transforms
 
@@ -57,8 +58,17 @@ class Geebeam(tfds.core.GeneratorBasedBuilder):
         
         # Add extra metadata features
         for key in extra_keys:
-            features[f'md_{key}'] = tfds.features.Scalar(dtype=tf.float32)
-        
+            md_val = config.extra_metadata[key]
+            if isinstance(md_val, str):
+                features[f'md_{key}']  = tfds.features.Text()
+            elif np.isscalar(md_val):
+                features[f'md_{key}'] = tfds.features.Scalar(dtype=tf.float32)
+            else:
+                features[f'md_{key}']  = tfds.features.Tensor(
+                    shape = md_val.shape,
+                    dtype = tf.float32
+                )
+
         # Add image band features
         for band in all_bands:
             features[f'im_{band}'] = tfds.features.Tensor(
@@ -158,7 +168,13 @@ class Geebeam(tfds.core.GeneratorBasedBuilder):
                     # Add extra metadata
                     for key in config.extra_metadata.keys():
                         if key in merged_metadata:
-                            example[f'md_{key}'] = merged_metadata[key]
+                            md_val = merged_metadata[key]
+                            if isinstance(md_val, str):
+                                example[f'md_{key}'] = md_val
+                            elif np.isscalar(md_val):
+                                example[f'md_{key}'] = np.float32(merged_metadata[key])
+                            else:
+                                example[f'md_{key}'] = merged_metadata[key].astype('float32')
                     
                     # Add image bands
                     for band_name, band_data in out_dict['array'].items():
