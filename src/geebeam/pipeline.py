@@ -33,11 +33,11 @@ def _prepare_run_metadata(config):
 def run_pipeline(
         image_list: list[ee.Image],
         output_path: str,
-        output_type: str,
         project: str,
         patch_size: int,
         scale: float,
         n_sample: int,
+        output_type: str = 'tfds',
         sampling_region: str | gpd.GeoDataFrame | ee.Geometry | None = None,
         sampling_points: pd.DataFrame | gpd.GeoDataFrame | ee.Geometry | None = None,
         validation_ratio: float = 0.2,
@@ -128,13 +128,13 @@ def run_pipeline(
     prepped_image, band_groups, all_bands = ee_utils.build_prepped_image(image_list, split_processing=split_processing)
     serialized_image = ee_utils.serialize(prepped_image)
 
-    # Write sidecar schema before pipeline execution
-    extra_keys = list(extra_metadata.keys())
-    transforms.write_sidecar_schema(output_path, all_bands, extra_keys,
-                                    is_gcs=output_path.startswith('gs://'))
 
     # Execute pipeline based on output type:
     if output_type == 'tfrecord':
+        # Write sidecar schema before pipeline execution
+        extra_keys = list(extra_metadata.keys())
+        transforms.write_sidecar_schema(output_path, all_bands, extra_keys,
+                                        is_gcs=output_path.startswith('gs://'))
         from geebeam import tfrecord_writer
         tfrecord_writer.run_tfrecord_export(
             input_records=input_records,
@@ -156,6 +156,7 @@ def run_pipeline(
             config=config,
             serialized_image=serialized_image,
             band_groups=band_groups,
+            all_bands=all_bands,
             scale_x=scale_x,
             scale_y=scale_y,
             extra_metadata=extra_metadata,
