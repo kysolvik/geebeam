@@ -21,13 +21,13 @@ def test_dict_to_example():
             'band1': np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32)
         }
     }
-    
+
     example_str = dict_to_example(element)
     assert isinstance(example_str, bytes)
-    
+
     example = tf.train.Example()
     example.ParseFromString(example_str)
-    
+
     features = example.features.feature
     assert features['md_id'].int64_list.value[0] == 1
     assert features['md_y'].float_list.value[0] == 10.0
@@ -43,23 +43,24 @@ def test_split_dataset():
     element = {'metadata': {'split': 'test'}}
     assert split_dataset(element, 2) == 2
 
-# Testing EEComputePatch might be hard without a real EE session, 
+# Testing EEComputePatch might be hard without a real EE session,
 # but we can mock the internal methods.
 @patch('ee.Initialize')
 @patch('ee.data.computePixels')
 @patch('ee.deserializer.fromJSON')
 def test_ee_compute_patch(mock_from_json, mock_compute_pixels, mock_ee_init):
     from geebeam.transforms import EEComputePatch
-    
+
     config = {
         'project_id': 'test-project',
         'patch_size': 2,
+        'crs': 'EPSG:4326'
     }
     serialized_image = '{"json": "image"}'
     scale_x = 30.0
     scale_y = -30.0
     band_groups = [['b1']]
-    
+
     # Mocking computePixels response
     # It returns raw bytes of NPY
     import io
@@ -67,18 +68,18 @@ def test_ee_compute_patch(mock_from_json, mock_compute_pixels, mock_ee_init):
     buf = io.BytesIO()
     np.save(buf, arr)
     mock_compute_pixels.return_value = buf.getvalue()
-    
+
     mock_image = MagicMock()
     mock_from_json.return_value = mock_image
     mock_image.select.return_value = mock_image
-    
+
     patch_fn = EEComputePatch(config, serialized_image, scale_x, scale_y, band_groups)
     patch_fn.setup() # Initialize EE
-    
+
     point = {'id': 1, 'y': 10.0, 'x': 20.0}
     results = list(patch_fn.process(point))
     print(results)
-    
+
     assert len(results) == 1
     result = results[0]
     assert 'metadata' in result
