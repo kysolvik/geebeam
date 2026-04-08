@@ -37,7 +37,7 @@ def run_pipeline(
         patch_size: int,
         scale: float,
         n_sample: int,
-        output_type: str = 'tfds',
+        output_type: str = 'tiff',
         sampling_region: str | gpd.GeoDataFrame | ee.Geometry | None = None,
         sampling_points: pd.DataFrame | gpd.GeoDataFrame | ee.Geometry | None = None,
         validation_ratio: float = 0.2,
