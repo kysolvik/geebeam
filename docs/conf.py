@@ -22,8 +22,7 @@ autoapi_dirs = ['../src/geebeam']
 # Important: Because we're not including "undoc-members",
 # you need to include a docstring on *everything* you want documented.
 # Including in __init__.py for submodules.
-autoapi_options = ['members', 'show-module-summary',
-                   'special-members', 'imported-members']
+autoapi_options = ['members', 'show-module-summary']
 
 autodoc_typehints = 'description'
 autoapi_member_order = 'groupwise'
