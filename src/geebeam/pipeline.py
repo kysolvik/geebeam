@@ -120,8 +120,14 @@ def run_pipeline(
     # Pre-run info:
     scale_x, scale_y = _prepare_run_metadata(config)
 
-    # Check if a local runner
+    # Check if a local runner. If so, add longer job timeout to fix grpcio timeout issue
     is_local = _check_if_localrunner(pipeline_options)
+    if is_local:
+        logging.warning('Running on local runner. Setting beam job_server_timeout'
+                        ' to 9999999 seconds to avoid grpcio timeout errors.')
+        pipeline_options_dict = pipeline_options.get_all_options(drop_default=True)
+        pipeline_options_dict['job_server_timeout'] = 9999999
+        pipeline_options = PipelineOptions.from_dictionary(pipeline_options_dict)
 
     # Prepare and serialize inputs
     # band_groups is a list of lists containing bands to export
@@ -147,7 +153,6 @@ def run_pipeline(
             scale_x=scale_x,
             scale_y=scale_y,
             extra_metadata=extra_metadata,
-            is_local=is_local,
             pipeline_options=pipeline_options
         )
     elif output_type == 'tfds':
@@ -177,7 +182,6 @@ def run_pipeline(
             scale_x=scale_x,
             scale_y=scale_y,
             extra_metadata=extra_metadata,
-            is_local=is_local,
             pipeline_options=pipeline_options
         )
     else:
