@@ -2,7 +2,7 @@
 
 import os
 import apache_beam as beam
-from apache_beam.options.pipeline_options import PipelineOptions
+from apache_beam.options.pipeline_options import PipelineOptions, StandardOptions
 import tensorflow_data_validation as tfdv
 from tfx_bsl.coders import example_coder
 
@@ -17,26 +17,14 @@ def run_tfrecord_export(
     scale_x: float,
     scale_y: float,
     extra_metadata: dict,
-    is_local: bool,
     pipeline_options: PipelineOptions
     ):
     with beam.Pipeline(options=pipeline_options) as pipeline:
 
         points = pipeline | 'Create points' >> beam.Create(input_records)
 
-        if is_local:
-            batches = (
-                points
-                | 'Add Dummy Key' >> beam.Map(lambda x: (None, x))
-                | 'Reshuffle' >> beam.Reshuffle()
-                | 'Force Single Batches' >> beam.GroupIntoBatches(batch_size=1)
-                | 'Extract' >> beam.FlatMap(lambda x: x[1])
-            )
-        else:
-            batches = points
-
         training_data, validation_data = (
-            batches
+            points
             | 'Get patch' >> beam.ParDo(transforms.EEComputePatch(
                 config,
                 serialized_image,
