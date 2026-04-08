@@ -2,7 +2,7 @@
 
 import os
 import apache_beam as beam
-from apache_beam.options.pipeline_options import PipelineOptions, StandardOptions
+from apache_beam.options.pipeline_options import PipelineOptions
 import tensorflow_data_validation as tfdv
 from tfx_bsl.coders import example_coder
 
