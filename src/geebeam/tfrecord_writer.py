@@ -3,10 +3,8 @@
 import os
 import apache_beam as beam
 from apache_beam.options.pipeline_options import PipelineOptions
-import tensorflow_data_validation as tfdv
-from tfx_bsl.coders import example_coder
 
-from geebeam import transforms
+from geebeam import transforms, tf_utils
 
 def run_tfrecord_export(
     input_records: list[dict],
@@ -20,6 +18,8 @@ def run_tfrecord_export(
     is_local: bool,
     pipeline_options: PipelineOptions
     ):
+    import tensorflow_data_validation as tfdv
+    from tfx_bsl.coders import example_coder
     with beam.Pipeline(options=pipeline_options) as pipeline:
 
         points = pipeline | 'Create points' >> beam.Create(input_records)
@@ -51,7 +51,7 @@ def run_tfrecord_export(
         # Convert to TF examples
         training_examples = (
             training_data
-            | 'Train to tf.Example' >> beam.Map(transforms.dict_to_example)
+            | 'Train to tf.Example' >> beam.Map(tf_utils.dict_to_example)
         )
         # Calculate stats on training data
         decoder = example_coder.ExamplesToRecordBatchDecoder()
@@ -68,17 +68,17 @@ def run_tfrecord_export(
 
         # Write out examples
         (training_examples
-         | 'Write training' >> transforms.WriteTFExample(
+         | 'Write training' >> tf_utils.WriteTFExample(
              os.path.join(output_path, 'training'))
         )
         if config['validation_ratio'] > 0:
             validation_examples = (
                 validation_data
-                | 'Val to tf.Example' >> beam.Map(transforms.dict_to_example)
+                | 'Val to tf.Example' >> beam.Map(tf_utils.dict_to_example)
             )
 
             (validation_examples
-            | 'Write validation' >> transforms.WriteTFExample(
+            | 'Write validation' >> tf_utils.WriteTFExample(
                 os.path.join(output_path, 'validation'))
             )
 

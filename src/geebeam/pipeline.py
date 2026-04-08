@@ -133,11 +133,17 @@ def run_pipeline(
 
     # Execute pipeline based on output type:
     if output_type == 'tfrecord':
+        try:
+            from geebeam import tfrecord_writer
+        except ImportError:
+            raise ImportError(
+                "Missing dependencies for tfrecord writer. "
+                "Install them with `pip install geebeam[tensorflow]`"
+            )
         # Write sidecar schema before pipeline execution
         extra_keys = list(extra_metadata.keys())
         transforms.write_sidecar_schema(output_path, all_bands, extra_keys,
                                         is_gcs=output_path.startswith('gs://'))
-        from geebeam import tfrecord_writer
         tfrecord_writer.run_tfrecord_export(
             input_records=input_records,
             output_path=output_path,
@@ -151,7 +157,13 @@ def run_pipeline(
             pipeline_options=pipeline_options
         )
     elif output_type == 'tfds':
-        from geebeam import tfds_writer
+        try:
+            from geebeam import tfds_writer
+        except ImportError:
+            raise ImportError(
+                "Missing dependencies for TFDS writer. "
+                "Install them with `pip install geebeam[tensorflow]`"
+            )
         tfds_writer.run_tfds_export(
             input_records=input_records,
             output_path=output_path,
