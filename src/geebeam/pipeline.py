@@ -166,7 +166,19 @@ def run_pipeline(
             dataset_name=dataset_name,
             dataset_version=dataset_version
         )
-    elif output_type == 'tif':
-        raise ValueError('tif writer not yet implemented.')
+    elif output_type == 'tif' or output_type == 'tiff':
+        from geebeam import tiff_writer
+        tiff_writer.run_tiff_export(
+            input_records=input_records,
+            output_path=output_path,
+            config=config,
+            serialized_image=serialized_image,
+            band_groups=band_groups,
+            scale_x=scale_x,
+            scale_y=scale_y,
+            extra_metadata=extra_metadata,
+            is_local=is_local,
+            pipeline_options=pipeline_options
+        )
     else:
-        raise ValueError(f"output_type {output_type} not implemented. Options are ['tfds','tfrecord']")
+        raise ValueError(f"output_type {output_type} not implemented. Options are ['tfds', 'tfrecord', 'tiff']")
