@@ -19,7 +19,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-tests = ["pytest"]
+test = ["pytest"]
 lint = ["ruff"]
 build = ["hatch"]
 tensorflow = [
