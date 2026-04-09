@@ -103,6 +103,7 @@ class ProcessMetadataToParquet(beam.DoFn):
 
 def run_tiff_export(
     input_records: list[dict],
+    splits: list[str],
     output_path: str,
     config: dict,
     serialized_image,
@@ -137,28 +138,17 @@ def run_tiff_export(
         )
 
         # Split data
-        training_data, validation_data = (
-            all_data
-            | 'Split dataset' >> beam.Partition(transforms.split_dataset, 2)
-        )
-
-        # Write tiffs
-        (training_data
-            | 'Write Training TIFFs' >> beam.ParDo(WriteTiff(
-                output_path=os.path.join(output_path, 'train'),
-                crs=config['crs'],
-                scale_x=scale_x,
-                scale_y=scale_y
-            ))
-        )
-        (validation_data
-            | 'Write Validation TIFFs' >> beam.ParDo(WriteTiff(
-                output_path=os.path.join(output_path, 'val'),
-                crs=config['crs'],
-                scale_x=scale_x,
-                scale_y=scale_y
-            ))
-        )
+        for split in splits:
+            output_dir = os.path.join(output_path, split)
+            (all_data
+                | f'Filter {split}' >> beam.Filter(lambda record: record['metadata']['split'] == split)
+                | f'Write {split} TIFFs' >> beam.ParDo(WriteTiff(
+                    output_path=os.path.join(output_dir),
+                    crs=config['crs'],
+                    scale_x=scale_x,
+                    scale_y=scale_y
+                ))
+            )
         
         # Write metadata to parquet
         # To use WriteToParquet, we need a pyarrow schema.
