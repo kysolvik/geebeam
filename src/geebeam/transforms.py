@@ -144,18 +144,3 @@ class AddMetadata(beam.DoFn):
             "array": example["array"],
             "metadata": merged_metadata
         }
-
-class WriteTFExample(beam.PTransform):
-    """Write example"""
-    def __init__(self, output_dir, file_name_suffix='.tfrecord.gz'):
-        self.output_dir = output_dir
-        self.file_name_suffix = file_name_suffix
-
-    def expand(self, pcoll):
-        return (
-            pcoll
-            | 'Write to TFRecord' >> beam.io.WriteToTFRecord(
-                self.output_dir,
-                file_name_suffix=self.file_name_suffix
-            )
-        )

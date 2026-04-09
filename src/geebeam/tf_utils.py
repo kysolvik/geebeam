@@ -1,6 +1,7 @@
 """Helpers for tensorflow"""
 
 import tensorflow as tf
+import apache_beam as beam
 
 from geebeam import transforms
 
@@ -55,3 +56,18 @@ def array_to_example(structured_array):
                 value = structured_array[f].flatten()))
     return tf.train.Example(
         features = tf.train.Features(feature = feature))
+
+class WriteTFExample(beam.PTransform):
+    """Write example"""
+    def __init__(self, output_dir, file_name_suffix='.tfrecord.gz'):
+        self.output_dir = output_dir
+        self.file_name_suffix = file_name_suffix
+
+    def expand(self, pcoll):
+        return (
+            pcoll
+            | 'Write to TFRecord' >> beam.io.WriteToTFRecord(
+                self.output_dir,
+                file_name_suffix=self.file_name_suffix
+            )
+        )
