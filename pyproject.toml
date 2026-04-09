@@ -10,7 +10,7 @@ description = "Earth Engine + Apache Beam"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "apache-beam[gcp]==2.72.0",
+    "apache-beam[gcp]==2.71.0",
     "crcmod>=1.7",
     "dill>=0.4.1",
     "earthengine-api>=1.7.10",
