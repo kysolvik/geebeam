@@ -99,17 +99,19 @@ class EEComputePatch(beam.DoFn):
         self.scale_x = scale_x
         self.scale_y = scale_y
         self.band_groups = band_groups
+        self.initialized = False
 
-    def setup(self):
-        print(f"Initializing Earth Engine for project: {self.config['project_id']}")
-        logging.info("EE setup: starting")
+    def _initialize_ee(self):
+        logging.info(f"Initializing Earth Engine for project: {self.config['project_id']}")
         ee.Initialize(project=self.config['project_id'],
                       opt_url='https://earthengine-highvolume.googleapis.com')
-        logging.info("EE setup: finished")
+        self.initialized = True
 
     def process(self, point):
         """Compute a patch of pixel, with upper-left corner defined by the coords."""
-        logging.info(f"EE start {point['id']}")
+        if not self.initialized:
+            self._initialize_ee()
+
         t0 = time.time()
         out_ars = ee_utils.get_pixels_allbands(
             im=ee_utils.deserialize(self.serialized_image),
@@ -124,7 +126,7 @@ class EEComputePatch(beam.DoFn):
         out_dict = {'metadata': dict(point)}
         out_dict['array'] = join_struct_arrays_to_dict(out_ars)
         logging.info(
-            f"EE end {point['id']}, took {time.time() - t0:.1f}s"
+            f"EE loaded, {point['id']}, took {time.time() - t0:.1f}s"
         )
         yield out_dict
 
@@ -142,18 +144,3 @@ class AddMetadata(beam.DoFn):
             "array": example["array"],
             "metadata": merged_metadata
         }
-
-class WriteTFExample(beam.PTransform):
-    """Write example"""
-    def __init__(self, output_dir, file_name_suffix='.tfrecord.gz'):
-        self.output_dir = output_dir
-        self.file_name_suffix = file_name_suffix
-
-    def expand(self, pcoll):
-        return (
-            pcoll
-            | 'Write to TFRecord' >> beam.io.WriteToTFRecord(
-                self.output_dir,
-                file_name_suffix=self.file_name_suffix
-            )
-        )
