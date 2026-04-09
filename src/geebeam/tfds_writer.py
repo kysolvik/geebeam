@@ -32,6 +32,7 @@ class _GeebeamBuilderConfig(tfds.core.BuilderConfig):
         self.tags = []
 
 
+
 class Geebeam(tfds.core.GeneratorBasedBuilder):
     """TFDS Builder for geebeam Earth Engine image chips dataset."""
 
@@ -48,14 +49,14 @@ class Geebeam(tfds.core.GeneratorBasedBuilder):
         patch_size = config.patch_size
         all_bands = config.all_bands
         extra_keys = config.extra_metadata_keys
-        
+
         features = {
             'md_id': tfds.features.Scalar(dtype=tf.int64),
             'md_y': tfds.features.Scalar(dtype=tf.float32),
             'md_x': tfds.features.Scalar(dtype=tf.float32),
             'md_split': tfds.features.Text(),
         }
-        
+
         # Add extra metadata features
         for key in extra_keys:
             md_val = config.extra_metadata[key]
@@ -72,23 +73,23 @@ class Geebeam(tfds.core.GeneratorBasedBuilder):
         # Add image band features
         for band in all_bands:
             features[f'im_{band}'] = tfds.features.Tensor(
-                shape=(patch_size * patch_size,), 
+                shape=(patch_size * patch_size,),
                 dtype=tf.float32
             )
-        
+
         return tfds.features.FeaturesDict(features)
 
     def _split_generators(self, dl_manager):
         """Define splits based on training/validation ratio."""
         config = self.builder_config
-        
+
         # Get input data from config
         input_records = config.input_records
         serialized_image = config.serialized_image
         band_groups = config.band_groups
         scale_x = config.scale_x
         scale_y = config.scale_y
-        
+
         training_data = self._generate_examples(
                     input_records=input_records,
                     serialized_image=serialized_image,
@@ -102,7 +103,7 @@ class Geebeam(tfds.core.GeneratorBasedBuilder):
         if config.validation_ratio > 0:
             return {
                 'train': training_data,
-                'validation': self._generate_examples(
+                'val': self._generate_examples(
                     input_records=input_records,
                     serialized_image=serialized_image,
                     scale_x=scale_x,
@@ -118,7 +119,7 @@ class Geebeam(tfds.core.GeneratorBasedBuilder):
             }
 
 
-    def _generate_examples(self, input_records, serialized_image, scale_x, scale_y, 
+    def _generate_examples(self, input_records, serialized_image, scale_x, scale_y,
                           config, band_groups, split):
         """Generate examples using Beam pipeline."""
         beam = tfds.core.lazy_imports.apache_beam
@@ -128,70 +129,60 @@ class Geebeam(tfds.core.GeneratorBasedBuilder):
             'patch_size': config.patch_size,
             'crs': config.crs
         }
-        processor = transforms.EEComputePatch(
-            ee_config,
-            serialized_image,
-            scale_x,
-            scale_y,
-            band_groups
-        )
-        processor.setup()
 
         def _filter_by_split(record):
             """Filter records by split."""
             return record.get('split') == split
-        
-        def _process_and_convert(record):
+
+        def _postprocess_to_tfds(record):
             """Process a record and convert to TFDS example format."""
-            
-            # Process the record
-            try:
-                results = list(processor.process(record))
-                if results:
-                    out_dict = results[0]
-                    
-                    # Add extra metadata
-                    merged_metadata = {
-                        **out_dict.get("metadata", {}),
-                        **config.extra_metadata
-                    }
-                    
-                    # Convert dict to TFDS example format
-                    example = {}
-                    
-                    # Add metadata
-                    example['md_id'] = merged_metadata['id']
-                    example['md_y'] = merged_metadata['y']
-                    example['md_x'] = merged_metadata['x']
-                    example['md_split'] = merged_metadata['split']
-                    
-                    # Add extra metadata
-                    for key in config.extra_metadata.keys():
-                        if key in merged_metadata:
-                            md_val = merged_metadata[key]
-                            if isinstance(md_val, str):
-                                example[f'md_{key}'] = md_val
-                            elif np.isscalar(md_val):
-                                example[f'md_{key}'] = np.float32(merged_metadata[key])
-                            else:
-                                example[f'md_{key}'] = merged_metadata[key].astype('float32')
-                    
-                    # Add image bands
-                    for band_name, band_data in out_dict['array'].items():
-                        example[f'im_{band_name}'] = band_data.flatten().astype('float32')
-                    
-                    return record['id'], example
-            except Exception as e:
-                import logging
-                logging.error(f"Error processing record {record['id']}: {e}")
-                raise
-        
+            config = self.builder_config
+
+            # First add base metadata
+            md_dict = {
+                'md_id': record['metadata']['id'],
+                'md_y': record['metadata']['y'],
+                'md_x': record['metadata']['x'],
+                'md_split': record['metadata']['split']
+                }
+
+            # Add extra metadata features
+            for key in config.extra_metadata.keys():
+                if key in record['metadata']:
+                    md_val = record['metadata'][key]
+                    if isinstance(md_val, str):
+                        md_dict[f'md_{key}'] = md_val
+                    elif np.isscalar(md_val):
+                        md_dict[f'md_{key}'] = np.float32(record['metadata'][key])
+                    else:
+                        md_dict[f'md_{key}'] = record['metadata'][key].astype('float32')
+
+            # Build image feature with named bands
+            array_dict = {}
+            for band_name, band_data in record['array'].items():
+                array_dict[f'im_{band_name}'] = band_data.flatten().astype('float32')
+
+            # Combine
+            features = {**md_dict, **array_dict}
+
+            # Add image bands
+            return record['metadata']['id'], features
+
         return (
             beam.Create(input_records)
-            | f'Filter {split}' >> beam.Filter(_filter_by_split) 
+            | f'Filter {split}' >> beam.Filter(_filter_by_split)
             | f'Reshuffle {split}' >> beam.Reshuffle()
-            | f'Process {split}' >> beam.Map(_process_and_convert)
+            | f'Get patch {split}' >> beam.ParDo(transforms.EEComputePatch(
+                ee_config,
+                serialized_image,
+                scale_x,
+                scale_y,
+                band_groups
+                ))
+            | f'Add metadata {split}' >> beam.ParDo(transforms.AddMetadata(config.extra_metadata))
+            | f'Process {split}' >> beam.Map(_postprocess_to_tfds)
         )
+
 
 def run_tfds_export(
     input_records: list[dict],
