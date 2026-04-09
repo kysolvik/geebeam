@@ -10,7 +10,7 @@ description = "Earth Engine + Apache Beam"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "apache-beam[gcp]>=2.72.0",
+    "apache-beam[gcp]==2.72.0",
     "crcmod>=1.7",
     "dill>=0.4.1",
     "earthengine-api>=1.7.10",
@@ -33,6 +33,12 @@ tensorflow = [
 ]
 all = [
     "geebeam[tensorflow,test,lint]"
+]
+
+# Pin upper version of python, since apache-beam only supports to 3.12
+[tool.uv]
+environments = [
+    "python_version < '3.13'"
 ]
 
 # Version control
