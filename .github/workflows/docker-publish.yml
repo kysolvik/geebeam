@@ -5,17 +5,13 @@ on:
     types: [published]
   workflow_dispatch:
 
-# Defines registry and image name
 env:
-  REGISTRY: us-docker.pkg.dev
-  PROJECT: mmacedo-reservoirid
-  IMAGE_NAME: geebeam-public/geebeam
+  REPO_NAME: geebeam
 
-# There is a single job in this workflow. It's configured to run on the latest available version of Ubuntu.
 jobs:
   build-and-push-image:
     runs-on: ubuntu-latest
-    # Sets the permissions granted to the `GITHUB_TOKEN` for the actions in this job.
+    # Sets up permissions
     permissions:
       contents: read
       packages: write
@@ -24,17 +20,18 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
-      - name: Log in to the Container registry
+
+      - name: Log in to Dockerhub
         uses: docker/login-action@de05a6d3a24346d4659bce540fac29c04a309bad
         with:
-          registry: ${{ env.REGISTRY }}
-          username: _json_key
-          password: ${{ secrets.GAR_JSON_KEY }}
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - name: Extract metadata (tags, labels) for Docker
         id: meta
         uses: docker/metadata-action@54262e8fce11c7b5496f28398368170da45de7e7
         with:
-          images: ${{ env.REGISTRY }}/${{ env.PROJECT }}/${{ env.IMAGE_NAME }}
+          images: ${{ vars.DOCKERHUB_USERNAME }}/{{ env.REPO_NAME }}
           tags: |
             type=semver,pattern={{version}}
             type=sha,format=long
