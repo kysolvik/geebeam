@@ -96,7 +96,7 @@ python examples/geebeam_run.py \
     --experiments=use_runner_v2 \
     --temp_location=gs://[your-bucket]/[path_to_temp_dir]
     --machine_type=n2-highmem-2 \
-    --sdk_container_image=us-docker.pkg.dev/mmacedo-reservoirid/geebeam-public/geebeam:latest
+    --sdk_container_image=kysolvik/geebeam:latest
 ```
 
 Note in this case your `output_path` in run_pipeline() should be a Google Cloud Storage path. If you're running an older version of geebeam, replace "latest" in the sdk_container_image URI with the version number (e.g. v0.1.2). You can also build your own Docker image to run on. More info in the [DataFlow docs](https://docs.cloud.google.com/dataflow/docs/guides/using-custom-containers).
