@@ -36,13 +36,9 @@ def run_pipeline(
         project: str,
         patch_size: int,
         scale: float,
-        n_sample: int,
+        sampling_points: pd.DataFrame | gpd.GeoDataFrame | ee.FeatureCollection,
         output_type: str = 'tiff',
-        sampling_region: str | gpd.GeoDataFrame | ee.Geometry | None = None,
-        sampling_points: pd.DataFrame | gpd.GeoDataFrame | ee.Geometry | None = None,
-        validation_ratio: float = 0.2,
         crs: str = 'EPSG:4326',
-        random_seed: int = None,
         split_processing: bool = False,
         extra_metadata: dict = {},
         beam_options: dict[str] | list[str] | None = None,
@@ -53,17 +49,13 @@ def run_pipeline(
 
     Args:
         image_list: A list of image identifiers to process.
-        sampling_region: The region for sampling images.
         sampling_points: Locations to sample from, specifying upper-left of box.
         output_path: The path where output will be saved.
         output_type: 'tfrecord' (raw tfrecords) or 'tfds' (tensorflow-dataset).
         project: The Google Cloud project ID.
         patch_size: The size of the patches to be processed.
         scale: The scale factor for image processing.
-        n_sample: The number of samples to take.
-        validation_ratio: The ratio of data to use for validation. Defaults to 0.2.
         crs: The coordinate reference system. Defaults to 'EPSG:4326'.
-        random_seed: Seed for random number generation. Defaults to None.
         split_processing: Flag to indicate if processing should be split. Defaults to False.
         extra_metadata: Additional metadata to include. Defaults to an empty dictionary.
         beam_options_dict: Options for the Beam pipeline. Defaults to an empty dictionary.
@@ -72,15 +64,11 @@ def run_pipeline(
 
     logging.getLogger().setLevel(logging.INFO)
 
-    rng = np.random.default_rng(random_seed)
-
     # Set up configuration dict to pass along
     config = {
         'project_id': project,
         'patch_size': patch_size,
         'scale': scale,
-        'n_sample': n_sample,
-        'validation_ratio':validation_ratio,
         'crs': crs
     }
 
@@ -106,16 +94,7 @@ def run_pipeline(
             )
 
     # Get sample points
-    if sampling_points is not None:
-        sampled_points = sampler.process_sampling_points(sampling_points, target_crs=config['crs'])
-    else:
-        roi = sampler.get_roi(sampling_region, image_list, target_crs=config['crs'])
-        sampled_points  = sampler.sample_random_points(roi, config['n_sample'], rng)
-
-    # Split into training and validation
-    input_records = sampler.split_train_validation(
-        sampled_points, config['validation_ratio'], rng=rng
-        ).to_dict('records')
+    input_records, splits = sampler._process_sampling_points(sampling_points, target_crs=config['crs'])
 
     # Pre-run info:
     scale_x, scale_y = _prepare_run_metadata(config)
@@ -136,7 +115,6 @@ def run_pipeline(
     prepped_image, band_groups, all_bands = ee_utils.build_prepped_image(image_list, split_processing=split_processing)
     serialized_image = ee_utils.serialize(prepped_image)
 
-
     # Execute pipeline based on output type:
     if output_type == 'tfrecord':
         try:
@@ -152,6 +130,7 @@ def run_pipeline(
                                         is_gcs=output_path.startswith('gs://'))
         tfrecord_writer.run_tfrecord_export(
             input_records=input_records,
+            splits=splits,
             output_path=output_path,
             config=config,
             serialized_image=serialized_image,
@@ -171,6 +150,7 @@ def run_pipeline(
             )
         tfds_writer.run_tfds_export(
             input_records=input_records,
+            splits=splits,
             output_path=output_path,
             config=config,
             serialized_image=serialized_image,
@@ -187,6 +167,7 @@ def run_pipeline(
         from geebeam import tiff_writer
         tiff_writer.run_tiff_export(
             input_records=input_records,
+            splits=splits,
             output_path=output_path,
             config=config,
             serialized_image=serialized_image,
@@ -198,3 +179,54 @@ def run_pipeline(
         )
     else:
         raise ValueError(f"output_type {output_type} not implemented. Options are ['tfds', 'tfrecord', 'tiff']")
+
+def sample_and_run_pipeline(
+        sampling_region: str | gpd.GeoDataFrame | ee.Geometry,
+        n_sample: int,
+        validation_ratio: float = 0,
+        random_seed: int = 0,
+        crs: str = 'EPSG:4326',
+        *args,
+        **kwargs
+        ) -> None:
+
+    sample_points = sampler.sample_region_random(
+        roi=sampling_region,
+        n_sample=n_sample,
+        random_seed=random_seed,
+        crs=crs,
+    )
+
+    if validation_ratio > 0:
+        sample_points = sampler.split_sets(
+            sample_points, split_names=['train','validation'], split_ratios=[1-validation_ratio,validation_ratio],
+            random_seed=random_seed
+        )
+
+    return run_pipeline(sampling_points=sample_points, crs=crs, *args, **kwargs)
+
+def grid_and_run_pipeline(
+        sampling_region: str | gpd.GeoDataFrame | ee.Geometry,
+        validation_ratio: float,
+        scale: float,
+        stride: int,
+        crs: str = 'EPSG:4326',
+        random_seed: int = 0,
+        *args,
+        **kwargs
+        ) -> None:
+
+    sample_points = sampler.sample_region_grid(
+        roi=sampling_region,
+        crs='EPSG:4326',
+        stride=stride,
+        scale=scale,
+    )
+
+    if validation_ratio > 0:
+        sample_points = sampler.split_sets(
+            sample_points, split_names=['train','validation'], split_ratios=[1-validation_ratio,validation_ratio],
+            random_seed=random_seed
+        )
+
+    return run_pipeline(sampling_points=sample_points, crs=crs, scale=scale, *args, **kwargs)
