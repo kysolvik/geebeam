@@ -189,7 +189,7 @@ def split_sets(
     # Some checks, and convert ratios to counts
     if len(split_names) > 0:
         if split_ratios:
-            if np.sum(split_ratios) != 1:
+            if not np.isclose(np.sum(split_ratios), 1, ):
                 raise ValueError('Split ratios do not equal 1.')
             elif len(split_ratios) != len(split_names):
                 raise ValueError(f'Length of `split_ratios` ({len(split_ratios)}) must match length of'

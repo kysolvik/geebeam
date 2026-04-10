@@ -10,7 +10,7 @@ from geebeam import transforms
 class _GeebeamBuilderConfig(tfds.core.BuilderConfig):
     """Configuration object for builder."""
     def __init__(self, name, serialized_image, band_groups, all_bands,
-                 input_records, crs, scale_x, scale_y, patch_size, validation_ratio,
+                 input_records, crs, scale_x, scale_y, patch_size, splits,
                  project_id, extra_metadata,
                  version
                  ):
@@ -23,7 +23,7 @@ class _GeebeamBuilderConfig(tfds.core.BuilderConfig):
         self.scale_x = scale_x
         self.scale_y = scale_y
         self.input_records = input_records
-        self.validation_ratio = validation_ratio
+        self.splits = splits
         self.crs = crs
         self.extra_metadata = extra_metadata
         self.extra_metadata_keys = list(extra_metadata.keys())
@@ -80,7 +80,7 @@ class Geebeam(tfds.core.GeneratorBasedBuilder):
         return tfds.features.FeaturesDict(features)
 
     def _split_generators(self, dl_manager):
-        """Define splits based on training/validation ratio."""
+        """Define splits based on split attribute in each record."""
         config = self.builder_config
 
         # Get input data from config
@@ -90,34 +90,18 @@ class Geebeam(tfds.core.GeneratorBasedBuilder):
         scale_x = config.scale_x
         scale_y = config.scale_y
 
-        training_data = self._generate_examples(
+        return {
+            split: self._generate_examples(
                     input_records=input_records,
                     serialized_image=serialized_image,
                     scale_x=scale_x,
                     scale_y=scale_y,
                     config=config,
                     band_groups=band_groups,
-                    split='train'
+                    split=split
                 )
-        # Return examples, generating validation examples if necessary
-        if config.validation_ratio > 0:
-            return {
-                'train': training_data,
-                'val': self._generate_examples(
-                    input_records=input_records,
-                    serialized_image=serialized_image,
-                    scale_x=scale_x,
-                    scale_y=scale_y,
-                    config=config,
-                    band_groups=band_groups,
-                    split='val'
-                )
-            }
-        else:
-            return {
-                'train': training_data
-            }
-
+                for split in config.splits
+        }
 
     def _generate_examples(self, input_records, serialized_image, scale_x, scale_y,
                           config, band_groups, split):
@@ -186,6 +170,7 @@ class Geebeam(tfds.core.GeneratorBasedBuilder):
 
 def run_tfds_export(
     input_records: list[dict],
+    splits: list[str],
     output_path: str,
     config: dict,
     serialized_image,
@@ -203,6 +188,7 @@ def run_tfds_export(
         name=dataset_name,
         version=dataset_version,
         input_records=input_records,
+        splits=splits,
         serialized_image=serialized_image,
         band_groups=band_groups,
         all_bands=all_bands,
@@ -210,7 +196,6 @@ def run_tfds_export(
         scale_x=scale_x,
         scale_y=scale_y,
         patch_size=config['patch_size'],
-        validation_ratio=config['validation_ratio'],
         project_id=config['project_id'],
         extra_metadata=extra_metadata
     )
