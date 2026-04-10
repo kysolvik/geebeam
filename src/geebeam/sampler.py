@@ -103,7 +103,8 @@ def sample_region_random(
         scale_proj_1m = _get_crs_scale(roi.crs.to_string(), 1)
         roi = roi.dissolve().buffer(scale_proj_1m*buffer_distance)
 
-    sampled_points = gpd.GeoDataFrame(geometry=roi.sample_points(n_sample, rng=rng).geometry.explode())
+    sampled_points = gpd.GeoDataFrame(geometry=roi.sample_points(n_sample, rng=rng).geometry.explode(),
+                                      crs=crs)
     sampled_points.index = np.arange(sampled_points.shape[0])
     return sampled_points
 
@@ -217,6 +218,10 @@ def split_sets(
 
     # Build split dictionary
     split_dict = dict(zip(split_names, split_counts))
+
+    # Assign id so we can see splits
+    if 'id' not in points_gdf.columns:
+        points_gdf['id'] = np.arange(points_gdf.shape[0])
 
     if isinstance(points_gdf, ee.FeatureCollection):
         return _assign_splits_ee(points_gdf, split_dict, random_seed, shuffle)
