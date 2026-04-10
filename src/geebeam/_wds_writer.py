@@ -62,7 +62,9 @@ class ProcessToWebDataset(beam.DoFn):
         }
 
 class WriteToWebDataset(beam.DoFn):
+    """Write WDS to sharded .tar files"""
     def __init__(self, output_path, split):
+        # Prevent overlapping writes (confirm this is needed?)
         worker_id = str(uuid.uuid4())[:8]
         self.out_pattern = f'{os.path.join(output_path, split)}-{worker_id}-%06d.tar'
         self.writer = None
