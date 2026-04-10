@@ -179,7 +179,40 @@ def split_sets(
         random_seed: int = 0,
         shuffle: bool = True
         ) -> gpd.GeoDataFrame:
+    """Assign sampling points to different splits (e.g., train, validation, test).
 
+    Divides a collection of sampling points into named splits with specified
+    proportions or counts. Supports optional shuffling before assignment to
+    ensure random distribution across splits.
+
+    Args:
+        points_gdf: Collection of sampling points in one of the following formats:
+            - gpd.GeoDataFrame: Point geometries with CRS information
+            - pd.DataFrame: Must contain 'x' and 'y' coordinate columns
+            - ee.FeatureCollection: Earth Engine FeatureCollection of points
+        split_names: List of names for each split (e.g., ['train', 'validation', 'test']).
+        split_ratios: List of floats specifying the proportion of points for each split.
+            Must sum to 1.0 and match the length of split_names. Either this or
+            split_counts must be provided.
+        split_counts: List of integers specifying the exact number of points for each split.
+            Must sum to the total number of points and match the length of split_names.
+            Either this or split_ratios must be provided.
+        random_seed: Seed for random number generation. Ensures reproducible splits
+            when shuffle=True. Defaults to 0.
+        shuffle: Whether to randomly shuffle points before assigning to splits.
+            Defaults to True.
+
+    Returns:
+        GeoDataFrame or FeatureCollection with a 'split' column containing the assigned
+        split name for each point. Also includes an 'id' column with point identifiers
+        if not already present.
+
+    Raises:
+        ValueError: If split_ratios do not sum to 1.0, or if split_counts do not sum
+            to total observations, or if the lengths of split_names, split_ratios,
+            and/or split_counts do not match. Also raised if neither split_ratios
+            nor split_counts is provided.
+    """
 
     # Find total size
     if isinstance(points_gdf, ee.FeatureCollection):
