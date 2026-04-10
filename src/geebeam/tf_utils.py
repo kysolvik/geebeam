@@ -2,6 +2,7 @@
 
 import tensorflow as tf
 import apache_beam as beam
+import numpy as np
 
 from geebeam import transforms
 
@@ -17,28 +18,39 @@ def _int64_feature(value):
     """Returns an int64_list from a bool / enum / int / uint."""
     return tf.train.Feature(int64_list=tf.train.Int64List(value=[value]))
 
-def dict_to_example(element):
+def dict_to_example(record):
     """"Convert structured numpy array to tf.Example proto."""
     # First add metadata
-    md_dict = {
-        'md_id': _int64_feature(element['metadata']['id']),
-        'md_y': _float_feature(element['metadata']['y']),
-        'md_x': _float_feature(element['metadata']['x']),
-        }
-    for md_key in element['metadata'].keys():
-        if md_key not in ['id','y','x', 'split']:
-            md_dict['md_' + md_key] = tf.train.Feature(float_list=
+    # Add metadata features
+    md_dict = {}
+    for md_key, md_val in record['metadata'].items():
+        if isinstance(md_val, str):
+            md_dict[f'md_{md_key}'] = _bytes_feature(md_val.encode('utf-8'))
+        elif np.isscalar(md_val):
+            if isinstance(md_val, int):
+                md_dict[f'md_{md_key}'] = _int64_feature(record['metadata'][md_key])
+            else:
+                md_dict[f'md_{md_key}'] = _float_feature(record['metadata'][md_key])
+        else:
+            md_dict[f'md_{md_key}'] = tf.train.Feature(float_list=
                 tf.train.FloatList(
-                    value = transforms.convert_to_iterable(element['metadata'][md_key])
+                    value = transforms.convert_to_iterable(record['metadata'][md_key])
                 )
             )
 
     # Build image feature with named bands
     array_dict = {}
-    for im_feat in element['array'].keys():#.dtype.names:
+    for band_name, band_data in record['array'].items():
+        array_dict[f'{band_name}'] = band_data.flatten().astype('float32')
+
+    # Build image feature with named bands
+    array_dict = {}
+    for im_feat, im_data in record['array'].items():
         array_dict['im_'+im_feat] = tf.train.Feature(
             float_list = tf.train.FloatList(
-                value = element['array'][im_feat].flatten()))
+                value = im_data.flatten()
+                )
+        )
 
     # Combine
     feature = {**md_dict, **array_dict}

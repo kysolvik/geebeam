@@ -103,6 +103,7 @@ class ProcessMetadataToParquet(beam.DoFn):
 
 def run_tiff_export(
     input_records: list[dict],
+    splits: list[str],
     output_path: str,
     config: dict,
     serialized_image,
@@ -110,6 +111,7 @@ def run_tiff_export(
     scale_x: float,
     scale_y: float,
     extra_metadata: dict,
+    md_feature_dict: dict,
     pipeline_options: PipelineOptions
     ):
     """Run Beam pipeline to export TIFFs and a Parquet metadata file."""
@@ -124,7 +126,7 @@ def run_tiff_export(
     with beam.Pipeline(options=pipeline_options) as pipeline:
         points = pipeline | 'Create points' >> beam.Create(input_records)
 
-        # Get patches and metadata
+        # Get patches
         all_data = (
             points
             | 'Get patch' >> beam.ParDo(transforms.EEComputePatch(
@@ -137,49 +139,35 @@ def run_tiff_export(
         )
 
         # Split data
-        training_data, validation_data = (
-            all_data
-            | 'Split dataset' >> beam.Partition(transforms.split_dataset, 2)
-        )
-
-        # Write tiffs
-        (training_data
-            | 'Write Training TIFFs' >> beam.ParDo(WriteTiff(
-                output_path=os.path.join(output_path, 'train'),
-                crs=config['crs'],
-                scale_x=scale_x,
-                scale_y=scale_y
-            ))
-        )
-        (validation_data
-            | 'Write Validation TIFFs' >> beam.ParDo(WriteTiff(
-                output_path=os.path.join(output_path, 'val'),
-                crs=config['crs'],
-                scale_x=scale_x,
-                scale_y=scale_y
-            ))
-        )
+        for split in splits:
+            output_dir = os.path.join(output_path, split)
+            (all_data
+                | f'Filter {split}' >> beam.Filter(lambda record, s=split: record['metadata']['split'] == s)
+                | f'Reshuffle {split}' >> beam.Reshuffle()
+                | f'Write {split} TIFFs' >> beam.ParDo(WriteTiff(
+                    output_path=output_dir,
+                    crs=config['crs'],
+                    scale_x=scale_x,
+                    scale_y=scale_y
+                ))
+            )
         
         # Write metadata to parquet
         # To use WriteToParquet, we need a pyarrow schema.
         # Define schema based on known fields and extra_metadata keys
         fields = [
-            ('id', pa.int64()),
-            ('x', pa.float64()),
-            ('y', pa.float64()),
-            ('split', pa.string()),
             ('image_path', pa.string()),
             ('image_name', pa.string()),
         ]
         
-        for key in extra_metadata.keys():
-            # Basic type inference for extra metadata
-            val = extra_metadata[key]
-            if isinstance(val, int):
+        for key, data_type in md_feature_dict.items():
+            if data_type == 'int':
                 fields.append((key, pa.int64()))
-            elif isinstance(val, float):
+            elif data_type == 'float':
                 fields.append((key, pa.float64()))
-            else:
+            elif isinstance(data_type, dict):
+                fields.append((key, pa.list_(pa.float64())))
+            elif data_type == 'str':
                 fields.append((key, pa.string()))
         
         schema = pa.schema(fields)

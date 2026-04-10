@@ -10,8 +10,8 @@ from geebeam import transforms
 class _GeebeamBuilderConfig(tfds.core.BuilderConfig):
     """Configuration object for builder."""
     def __init__(self, name, serialized_image, band_groups, all_bands,
-                 input_records, crs, scale_x, scale_y, patch_size, validation_ratio,
-                 project_id, extra_metadata,
+                 input_records, crs, scale_x, scale_y, patch_size, splits,
+                 project_id, extra_metadata, md_feature_dict,
                  version
                  ):
         self.name = name
@@ -23,14 +23,13 @@ class _GeebeamBuilderConfig(tfds.core.BuilderConfig):
         self.scale_x = scale_x
         self.scale_y = scale_y
         self.input_records = input_records
-        self.validation_ratio = validation_ratio
+        self.splits = splits
         self.crs = crs
         self.extra_metadata = extra_metadata
-        self.extra_metadata_keys = list(extra_metadata.keys())
+        self.md_feature_dict = md_feature_dict
         self.version = version
         self.supported_versions = [self.version]
         self.tags = []
-
 
 
 class Geebeam(tfds.core.GeneratorBasedBuilder):
@@ -48,31 +47,27 @@ class Geebeam(tfds.core.GeneratorBasedBuilder):
         config = self.builder_config
         patch_size = config.patch_size
         all_bands = config.all_bands
-        extra_keys = config.extra_metadata_keys
+        md_feature_dict = config.md_feature_dict
 
-        features = {
-            'md_id': tfds.features.Scalar(dtype=tf.int64),
-            'md_y': tfds.features.Scalar(dtype=tf.float32),
-            'md_x': tfds.features.Scalar(dtype=tf.float32),
-            'md_split': tfds.features.Text(),
-        }
+        features = {}
 
-        # Add extra metadata features
-        for key in extra_keys:
-            md_val = config.extra_metadata[key]
-            if isinstance(md_val, str):
-                features[f'md_{key}']  = tfds.features.Text()
-            elif np.isscalar(md_val):
-                features[f'md_{key}'] = tfds.features.Scalar(dtype=tf.float32)
-            else:
-                features[f'md_{key}']  = tfds.features.Tensor(
-                    shape = md_val.shape,
+        # Add metadata features
+        for key, data_type in md_feature_dict.items():
+            if data_type == 'str':
+                features[f'{key}']  = tfds.features.Text()
+            elif data_type == 'int':
+                features[f'{key}'] = tfds.features.Scalar(dtype=tf.int64)
+            elif data_type == 'float':
+                features[f'{key}'] = tfds.features.Scalar(dtype=tf.float32)
+            elif isinstance(data_type, dict):
+                features[f'{key}']  = tfds.features.Tensor(
+                    shape = data_type['arraylike'],
                     dtype = tf.float32
                 )
 
         # Add image band features
         for band in all_bands:
-            features[f'im_{band}'] = tfds.features.Tensor(
+            features[f'{band}'] = tfds.features.Tensor(
                 shape=(patch_size * patch_size,),
                 dtype=tf.float32
             )
@@ -80,7 +75,7 @@ class Geebeam(tfds.core.GeneratorBasedBuilder):
         return tfds.features.FeaturesDict(features)
 
     def _split_generators(self, dl_manager):
-        """Define splits based on training/validation ratio."""
+        """Define splits based on split attribute in each record."""
         config = self.builder_config
 
         # Get input data from config
@@ -90,34 +85,18 @@ class Geebeam(tfds.core.GeneratorBasedBuilder):
         scale_x = config.scale_x
         scale_y = config.scale_y
 
-        training_data = self._generate_examples(
+        return {
+            split: self._generate_examples(
                     input_records=input_records,
                     serialized_image=serialized_image,
                     scale_x=scale_x,
                     scale_y=scale_y,
                     config=config,
                     band_groups=band_groups,
-                    split='train'
+                    split=split
                 )
-        # Return examples, generating validation examples if necessary
-        if config.validation_ratio > 0:
-            return {
-                'train': training_data,
-                'val': self._generate_examples(
-                    input_records=input_records,
-                    serialized_image=serialized_image,
-                    scale_x=scale_x,
-                    scale_y=scale_y,
-                    config=config,
-                    band_groups=band_groups,
-                    split='val'
-                )
-            }
-        else:
-            return {
-                'train': training_data
-            }
-
+                for split in config.splits
+        }
 
     def _generate_examples(self, input_records, serialized_image, scale_x, scale_y,
                           config, band_groups, split):
@@ -136,36 +115,28 @@ class Geebeam(tfds.core.GeneratorBasedBuilder):
 
         def _postprocess_to_tfds(record):
             """Process a record and convert to TFDS example format."""
-            config = self.builder_config
 
-            # First add base metadata
-            md_dict = {
-                'md_id': record['metadata']['id'],
-                'md_y': record['metadata']['y'],
-                'md_x': record['metadata']['x'],
-                'md_split': record['metadata']['split']
-                }
-
-            # Add extra metadata features
-            for key in config.extra_metadata.keys():
-                if key in record['metadata']:
-                    md_val = record['metadata'][key]
-                    if isinstance(md_val, str):
-                        md_dict[f'md_{key}'] = md_val
-                    elif np.isscalar(md_val):
-                        md_dict[f'md_{key}'] = np.float32(record['metadata'][key])
+            # Add metadata features
+            md_dict = {}
+            for key, md_val in record['metadata'].items():
+                if isinstance(md_val, str):
+                    md_dict[f'{key}'] = md_val
+                elif np.isscalar(md_val):
+                    if isinstance(md_val, int):
+                        md_dict[f'{key}'] = np.int64(record['metadata'][key])
                     else:
-                        md_dict[f'md_{key}'] = record['metadata'][key].astype('float32')
+                        md_dict[f'{key}'] = np.float32(record['metadata'][key])
+                else:
+                    md_dict[f'{key}'] = np.array(record['metadata'][key]).astype('float32')
 
             # Build image feature with named bands
             array_dict = {}
             for band_name, band_data in record['array'].items():
-                array_dict[f'im_{band_name}'] = band_data.flatten().astype('float32')
+                array_dict[f'{band_name}'] = band_data.flatten().astype('float32')
 
             # Combine
             features = {**md_dict, **array_dict}
 
-            # Add image bands
             return record['metadata']['id'], features
 
         return (
@@ -186,6 +157,7 @@ class Geebeam(tfds.core.GeneratorBasedBuilder):
 
 def run_tfds_export(
     input_records: list[dict],
+    splits: list[str],
     output_path: str,
     config: dict,
     serialized_image,
@@ -194,6 +166,7 @@ def run_tfds_export(
     scale_x: float,
     scale_y: float,
     extra_metadata: dict,
+    md_feature_dict: dict,
     pipeline_options: PipelineOptions,
     dataset_name: str,
     dataset_version: str,
@@ -203,6 +176,7 @@ def run_tfds_export(
         name=dataset_name,
         version=dataset_version,
         input_records=input_records,
+        splits=splits,
         serialized_image=serialized_image,
         band_groups=band_groups,
         all_bands=all_bands,
@@ -210,9 +184,9 @@ def run_tfds_export(
         scale_x=scale_x,
         scale_y=scale_y,
         patch_size=config['patch_size'],
-        validation_ratio=config['validation_ratio'],
         project_id=config['project_id'],
-        extra_metadata=extra_metadata
+        extra_metadata=extra_metadata,
+        md_feature_dict=md_feature_dict
     )
 
     # Create builder

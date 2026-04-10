@@ -1,10 +1,13 @@
 """Beam and Earth Engine helpers for running data pipelines"""
 
-from . import climate_indices
+from . import climate_indices, sampler
 
-from .pipeline import run_pipeline
+from .pipeline import run_pipeline, sample_and_run_pipeline, grid_and_run_pipeline
 
 __all__ = [
     "climate_indices",
+    "sampler",
     "run_pipeline",
+    "sample_and_run_pipeline",
+    "grid_and_run_pipeline"
 ]

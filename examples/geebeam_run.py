@@ -10,24 +10,38 @@ PROJECT_ID = google.auth.default()[1]
 # Initialize ee client, replace with your GCP project ID
 ee.Initialize(project=PROJECT_ID)
 
-# Build image for download
-burned_2024 = (ee.ImageCollection('MODIS/061/MCD64A1')
-            .select('BurnDate')
-            .filter(ee.Filter.calendarRange(2024, 2024, 'year'))
-            .min()
-            .gt(0)
-            .rename(['Burn'])
-            )
+# Load a raw Landsat 5 ImageCollection for a single year.
+ls5_collection = ee.ImageCollection('LANDSAT/LT05/C02/T1').filterDate(
+    '2010-01-01', '2010-12-31'
+)
+
+# Create a (mostly) cloud-free Landsat composite
+ls5_composite = ee.Algorithms.Landsat.simpleComposite(
+    ls5_collection,
+    asFloat=True,
+    cloudScoreRange=5)
+
+# Get some locations to sample from:
+sampling_region=ee.Geometry.Rectangle(-55.0, -12.0, -50.0, -16.0) # In central-west Brazil
+sample_points = geebeam.sampler.sample_region_random(
+    roi=sampling_region,
+    crs='EPSG:4326',
+    n_sample=10
+)
+
+# Split into train and validation
+sample_points_split = geebeam.sampler.split_sets(
+    sample_points, split_names=['train','validation'], split_ratios=[0.8, 0.2]
+)
 
 # Building and triggering the pipeline is done with a single command:
-geebeam.run_pipeline(
-    image_list = [burned_2024],
-    output_type='tfrecord',
-    project=PROJECT_ID,
-    patch_size=128, # Pixel dimensions in each direction
-    scale=500, # Final export resolution in meters
-    n_sample=10, # Number of tiles to sample
-    validation_ratio=0.2, # Fraction to select as validation data
-    output_path='./test_tf_data/',
-    sampling_region=ee.Geometry.Rectangle(-63.0, -9.0, -56.0, -4.0)
+geebeam.pipeline.run_pipeline(
+    image_list = [ls5_composite], # Important: has to be a list of images
+    crs='EPSG:4326', # CRS for final output
+    sampling_points=sample_points_split, # Points we already generated
+    output_type='tiff', # Output type: tiff with parquets for tabular data
+    project=PROJECT_ID, # GCP Project ID
+    patch_size=128, # Patch dimensions in each direction (# pixels)
+    scale=30, # Final export resolution in meters
+    output_path='./test_data/', # Output path, local or on GCP
 )
