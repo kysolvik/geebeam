@@ -5,6 +5,7 @@ import ee
 import geopandas as gpd
 import pandas as pd
 from apache_beam.options.pipeline_options import PipelineOptions
+import numpy as np
 
 from geebeam import ee_utils, sampler, transforms
 
@@ -17,6 +18,42 @@ def _check_if_localrunner(pipeline_options):
     else:
         return False
 
+def _type_inference(val):
+    if isinstance(val, int):
+        return 'int'
+    elif isinstance(val, float):
+        return 'float'
+    elif isinstance(val, list) or isinstance(val, np.ndarray):
+        return 'arraylike'
+    elif isinstance(val, str):
+        return 'str'
+    else:
+        raise ValueError
+
+def _build_md_feature_dict(record, extra_metadata):
+    md_feature_dict = {
+        'id': 'int',
+        'x': 'float',
+        'y': 'float',
+        'split':'str'
+    }
+    if extra_metadata is not None:
+        for key in extra_metadata.keys():
+            # Basic type inference for extra metadata
+            try:
+                md_type = _type_inference(extra_metadata[key])
+            except ValueError:
+                raise ValueError(f'Could not determine data type of extra_metadata feature {key}')
+            md_feature_dict[key] = md_type
+
+    for key in record.keys():
+        if key not in ['id','x','y','split']:
+            try:
+                md_type = _type_inference(record[key])
+            except ValueError:
+                raise ValueError(f'Could not determine data type of column feature {key}')
+            md_feature_dict[key] = md_type
+    return md_feature_dict
 
 def _prepare_run_metadata(config):
     ee.Initialize(project=config['project_id'])
@@ -94,6 +131,9 @@ def run_pipeline(
 
     # Get sample points
     input_records, splits = sampler._process_sampling_points(sampling_points, target_crs=config['crs'])
+
+    # Get types of extra non-image data in extra_medtada or input_records
+    md_feature_dict = _build_md_feature_dict(input_records[0], extra_metadata)
 
     # Pre-run info:
     scale_x, scale_y = _prepare_run_metadata(config)
@@ -174,6 +214,7 @@ def run_pipeline(
             scale_x=scale_x,
             scale_y=scale_y,
             extra_metadata=extra_metadata,
+            md_feature_dict=md_feature_dict,
             pipeline_options=pipeline_options
         )
     else:
