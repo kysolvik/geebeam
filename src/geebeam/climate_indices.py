@@ -7,6 +7,17 @@ def download_clim_indices(
         year_start: int,
         year_end: int
     ) -> pd.DataFrame:
+    """Download non-spatial climate indices from NOAA.
+    
+    Note:
+        This was used for a specific project. It is probably not what you want, and will
+        be removed soon.
+        
+    Args:
+    index_name: one of 'amo', 'soi', 'oni', 'mei', 'tna'.
+    year_start: First year to download (but samples are monthly)
+    year_end: Last year for download (but samples are monthly)
+    """
     clim_registry = {
         'amo':'https://www.ncei.noaa.gov/pub/data/cmb/ersst/v5/index/ersst.v5.amo.dat',
         'soi':'https://psl.noaa.gov/data/timeseries/month/data/soi.long.csv',
