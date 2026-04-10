@@ -1,4 +1,4 @@
-"""Beam transforms and related utilities"""
+"""Beam _transforms and related utilities"""
 
 import logging
 import time
@@ -10,19 +10,19 @@ from apache_beam.io.gcp.gcsio import GcsIO
 import apache_beam as beam
 import ee
 
-from geebeam import ee_utils
+from geebeam import _ee_utils
 
-def write_json_to_local(json_string, local_path):
+def _write_json_to_local(json_string, local_path):
     data = json_string.encode('utf-8')
     with open(local_path, mode="wb") as f:
         f.write(data)
 
-def write_json_to_gcs(json_string, gcs_path):
+def _write_json_to_gcs(json_string, gcs_path):
     data = json_string.encode('utf-8')
     with GcsIO().open(gcs_path, mode="wb") as f:
         f.write(data)
 
-def convert_to_iterable(val):
+def _convert_to_iterable(val):
     # Convert to iterable
     try:
         _iter_check = iter(val)
@@ -31,7 +31,7 @@ def convert_to_iterable(val):
     else:
         return val
 
-def write_sidecar_schema(output_path, band_names, extra_metadata_keys, is_gcs):
+def _write_sidecar_schema(output_path, band_names, extra_metadata_keys, is_gcs):
     """Write a sidecar schema JSON describing the expected features."""
     schema_dict = {"features": {}}
     schema_dict["features"]["md_id"] = "int64"
@@ -46,14 +46,14 @@ def write_sidecar_schema(output_path, band_names, extra_metadata_keys, is_gcs):
     json_string = json.dumps(schema_dict, indent=2)
     schema_path = os.path.join(output_path, 'schema.json')
     if is_gcs:
-        write_json_to_gcs(json_string, schema_path)
+        _write_json_to_gcs(json_string, schema_path)
     else:
         # Check if diretory exists
         if not os.path.isdir(output_path):
             os.makedirs(output_path)
-        write_json_to_local(json_string, schema_path)
+        _write_json_to_local(json_string, schema_path)
 
-def split_dataset(element, n_partitions) -> int:
+def _split_dataset(element, n_partitions) -> int:
     split_mappings = {
         'train': 0,
         'val': 1,
@@ -71,7 +71,7 @@ def join_structured_arrays(array_list):
             merged[feat] = a[feat]
     return merged
 
-def join_struct_arrays_to_dict(array_list):
+def _join_struct_arrays_to_dict(array_list):
     """Join structured array along features axis, return as dict"""
     merged_dict = {}
     for a in array_list:
@@ -113,8 +113,8 @@ class EEComputePatch(beam.DoFn):
             self._initialize_ee()
 
         t0 = time.time()
-        out_ars = ee_utils.get_pixels_allbands(
-            im=ee_utils.deserialize(self.serialized_image),
+        out_ars = _ee_utils.get_pixels_allbands(
+            im=_ee_utils._deserialize(self.serialized_image),
             band_groups=self.band_groups,
             point=point,
             patch_size=self.config['patch_size'],
@@ -124,7 +124,7 @@ class EEComputePatch(beam.DoFn):
             )
 
         out_dict = {'metadata': dict(point)}
-        out_dict['array'] = join_struct_arrays_to_dict(out_ars)
+        out_dict['array'] = _join_struct_arrays_to_dict(out_ars)
         logging.info(
             f"EE loaded, {point['id']}, took {time.time() - t0:.1f}s"
         )

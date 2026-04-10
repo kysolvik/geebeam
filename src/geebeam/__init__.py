@@ -2,7 +2,7 @@
 
 from . import climate_indices, sampler
 
-from .pipeline import run_pipeline, sample_and_run_pipeline, grid_and_run_pipeline
+from ._pipeline import run_pipeline, sample_and_run_pipeline, grid_and_run_pipeline
 
 __all__ = [
     "climate_indices",

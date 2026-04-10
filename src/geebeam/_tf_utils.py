@@ -4,7 +4,7 @@ import tensorflow as tf
 import apache_beam as beam
 import numpy as np
 
-from geebeam import transforms
+from geebeam import _transforms
 
 def _bytes_feature(value):
     """Returns a bytes_list from a string / byte."""
@@ -18,7 +18,7 @@ def _int64_feature(value):
     """Returns an int64_list from a bool / enum / int / uint."""
     return tf.train.Feature(int64_list=tf.train.Int64List(value=[value]))
 
-def dict_to_example(record):
+def _dict_to_example(record):
     """"Convert structured numpy array to tf.Example proto."""
     # First add metadata
     # Add metadata features
@@ -34,7 +34,7 @@ def dict_to_example(record):
         else:
             md_dict[f'md_{md_key}'] = tf.train.Feature(float_list=
                 tf.train.FloatList(
-                    value = transforms.convert_to_iterable(record['metadata'][md_key])
+                    value = _transforms._convert_to_iterable(record['metadata'][md_key])
                 )
             )
 
@@ -59,7 +59,7 @@ def dict_to_example(record):
     return tf.train.Example(
         features = tf.train.Features(feature = feature)).SerializeToString()
 
-def array_to_example(structured_array):
+def _array_to_example(structured_array):
     """"Convert structured numpy array to tf.Example proto."""
     feature = {}
     for f in structured_array.dtype.names:

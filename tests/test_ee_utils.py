@@ -1,7 +1,7 @@
 import pytest
 import ee
 from unittest.mock import patch, MagicMock
-from geebeam.ee_utils import get_band_names, build_prepped_image, list_to_im
+from geebeam._ee_utils import get_band_names, build_prepped_image, list_to_im
 
 def test_get_band_names():
     mock_image1 = MagicMock()
@@ -37,7 +37,7 @@ def test_build_prepped_image(mock_ee_list, mock_ee_ic):
     assert band_groups == [ee.List(['b1']), ee.List(['b2'])]
     assert all_bands == ee.List(['b1', 'b2']).getInfo()
 
-@patch('geebeam.ee_utils.build_prepped_image')
+@patch('geebeam._ee_utils.build_prepped_image')
 def test_list_to_im(mock_build_prepped_image):
     mock_prepped_im = MagicMock()
     mock_build_prepped_image.return_value = (mock_prepped_im, None)

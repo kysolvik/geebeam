@@ -10,7 +10,7 @@ import rasterio
 from rasterio.transform import Affine
 import pyarrow as pa
 
-from geebeam import transforms
+from geebeam import _transforms
 
 def _build_tiff_name(id, min_digits=5):
     return f"{str(id).zfill(min_digits)}.tif"
@@ -129,7 +129,7 @@ def run_tiff_export(
         # Get patches
         all_data = (
             points
-            | 'Get patch' >> beam.ParDo(transforms.EEComputePatch(
+            | 'Get patch' >> beam.ParDo(_transforms.EEComputePatch(
                 config,
                 serialized_image,
                 scale_x,
@@ -173,7 +173,7 @@ def run_tiff_export(
         schema = pa.schema(fields)
 
         (all_data 
-         | 'Add Metadata' >> beam.ParDo(transforms.AddMetadata(extra_metadata))
+         | 'Add Metadata' >> beam.ParDo(_transforms.AddMetadata(extra_metadata))
          | 'Clean Metadata' >> beam.ParDo(ProcessMetadataToParquet(output_path))
          | 'Write Metadata' >> beam.io.parquetio.WriteToParquet(
              file_path_prefix=os.path.join(output_path, 'metadata'),

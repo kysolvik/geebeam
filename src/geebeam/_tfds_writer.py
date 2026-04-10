@@ -5,7 +5,7 @@ import tensorflow as tf
 from apache_beam.options.pipeline_options import PipelineOptions
 import numpy as np
 
-from geebeam import transforms
+from geebeam import _transforms
 
 class _GeebeamBuilderConfig(tfds.core.BuilderConfig):
     """Configuration object for builder."""
@@ -143,14 +143,14 @@ class Geebeam(tfds.core.GeneratorBasedBuilder):
             beam.Create(input_records)
             | f'Filter {split}' >> beam.Filter(_filter_by_split)
             | f'Reshuffle {split}' >> beam.Reshuffle()
-            | f'Get patch {split}' >> beam.ParDo(transforms.EEComputePatch(
+            | f'Get patch {split}' >> beam.ParDo(_transforms.EEComputePatch(
                 ee_config,
                 serialized_image,
                 scale_x,
                 scale_y,
                 band_groups
                 ))
-            | f'Add metadata {split}' >> beam.ParDo(transforms.AddMetadata(config.extra_metadata))
+            | f'Add metadata {split}' >> beam.ParDo(_transforms.AddMetadata(config.extra_metadata))
             | f'Process {split}' >> beam.Map(_postprocess_to_tfds)
         )
 
