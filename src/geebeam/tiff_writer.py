@@ -32,7 +32,6 @@ class WriteTiff(beam.DoFn):
                 logging.warning(f"Error creating directory {self.output_path}: {e}")
 
     def process(self, element):
-        print(element['metadata'])
         metadata = element['metadata']
         array_dict = element['array']
         
@@ -143,9 +142,10 @@ def run_tiff_export(
         for split in splits:
             output_dir = os.path.join(output_path, split)
             (all_data
-                | f'Filter {split}' >> beam.Filter(lambda record: record['metadata']['split'] == split)
+                | f'Filter {split}' >> beam.Filter(lambda record, s=split: record['metadata']['split'] == s)
+                | f'Reshuffle {split}' >> beam.Reshuffle()
                 | f'Write {split} TIFFs' >> beam.ParDo(WriteTiff(
-                    output_path=os.path.join(output_dir),
+                    output_path=output_dir,
                     crs=config['crs'],
                     scale_x=scale_x,
                     scale_y=scale_y
@@ -165,7 +165,7 @@ def run_tiff_export(
                 fields.append((key, pa.int64()))
             elif data_type == 'float':
                 fields.append((key, pa.float64()))
-            elif data_type == 'arraylike':
+            elif isinstance(data_type, dict):
                 fields.append((key, pa.list_(pa.float64())))
             elif data_type == 'str':
                 fields.append((key, pa.string()))
