@@ -54,20 +54,20 @@ class Geebeam(tfds.core.GeneratorBasedBuilder):
         # Add metadata features
         for key, data_type in md_feature_dict.items():
             if data_type == 'str':
-                features[f'md_{key}']  = tfds.features.Text()
+                features[f'{key}']  = tfds.features.Text()
             elif data_type == 'int':
-                features[f'md_{key}'] = tfds.features.Scalar(dtype=tf.int64)
+                features[f'{key}'] = tfds.features.Scalar(dtype=tf.int64)
             elif data_type == 'float':
-                features[f'md_{key}'] = tfds.features.Scalar(dtype=tf.float32)
+                features[f'{key}'] = tfds.features.Scalar(dtype=tf.float32)
             elif isinstance(data_type, dict):
-                features[f'md_{key}']  = tfds.features.Tensor(
+                features[f'{key}']  = tfds.features.Tensor(
                     shape = data_type['arraylike'],
                     dtype = tf.float32
                 )
 
         # Add image band features
         for band in all_bands:
-            features[f'im_{band}'] = tfds.features.Tensor(
+            features[f'{band}'] = tfds.features.Tensor(
                 shape=(patch_size * patch_size,),
                 dtype=tf.float32
             )
@@ -120,19 +120,19 @@ class Geebeam(tfds.core.GeneratorBasedBuilder):
             md_dict = {}
             for key, md_val in record['metadata'].items():
                 if isinstance(md_val, str):
-                    md_dict[f'md_{key}'] = md_val
+                    md_dict[f'{key}'] = md_val
                 elif np.isscalar(md_val):
                     if isinstance(md_val, int):
-                        md_dict[f'md_{key}'] = np.int64(record['metadata'][key])
+                        md_dict[f'{key}'] = np.int64(record['metadata'][key])
                     else:
-                        md_dict[f'md_{key}'] = np.float32(record['metadata'][key])
+                        md_dict[f'{key}'] = np.float32(record['metadata'][key])
                 else:
-                    md_dict[f'md_{key}'] = np.array(record['metadata'][key]).astype('float32')
+                    md_dict[f'{key}'] = np.array(record['metadata'][key]).astype('float32')
 
             # Build image feature with named bands
             array_dict = {}
             for band_name, band_data in record['array'].items():
-                array_dict[f'im_{band_name}'] = band_data.flatten().astype('float32')
+                array_dict[f'{band_name}'] = band_data.flatten().astype('float32')
 
             # Combine
             features = {**md_dict, **array_dict}
