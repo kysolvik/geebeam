@@ -32,6 +32,7 @@ class WriteTiff(beam.DoFn):
                 logging.warning(f"Error creating directory {self.output_path}: {e}")
 
     def process(self, element):
+        print(element['metadata'])
         metadata = element['metadata']
         array_dict = element['array']
         
@@ -111,6 +112,7 @@ def run_tiff_export(
     scale_x: float,
     scale_y: float,
     extra_metadata: dict,
+    md_feature_dict: dict,
     pipeline_options: PipelineOptions
     ):
     """Run Beam pipeline to export TIFFs and a Parquet metadata file."""
@@ -154,22 +156,18 @@ def run_tiff_export(
         # To use WriteToParquet, we need a pyarrow schema.
         # Define schema based on known fields and extra_metadata keys
         fields = [
-            ('id', pa.int64()),
-            ('x', pa.float64()),
-            ('y', pa.float64()),
-            ('split', pa.string()),
             ('image_path', pa.string()),
             ('image_name', pa.string()),
         ]
         
-        for key in extra_metadata.keys():
-            # Basic type inference for extra metadata
-            val = extra_metadata[key]
-            if isinstance(val, int):
+        for key, data_type in md_feature_dict.items():
+            if data_type == 'int':
                 fields.append((key, pa.int64()))
-            elif isinstance(val, float):
+            elif data_type == 'float':
                 fields.append((key, pa.float64()))
-            else:
+            elif data_type == 'arraylike':
+                fields.append((key, pa.list_(pa.float64())))
+            elif data_type == 'str':
                 fields.append((key, pa.string()))
         
         schema = pa.schema(fields)
