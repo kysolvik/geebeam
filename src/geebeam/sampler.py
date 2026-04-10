@@ -219,6 +219,6 @@ def split_sets(
     split_dict = dict(zip(split_names, split_counts))
 
     if isinstance(points_gdf, ee.FeatureCollection):
-        return _assign_splits_ee(points_gdf, split_dict, shuffle)
+        return _assign_splits_ee(points_gdf, split_dict, random_seed, shuffle)
     else:
-        return _assign_splits_pandas(points_gdf, split_dict, shuffle)
+        return _assign_splits_pandas(points_gdf, split_dict, random_seed, shuffle)
