@@ -4,7 +4,6 @@ import warnings
 import ee
 import geopandas as gpd
 import pandas as pd
-import numpy as np
 from apache_beam.options.pipeline_options import PipelineOptions
 
 from geebeam import ee_utils, sampler, transforms
