@@ -11,13 +11,13 @@ PROJECT_ID = google.auth.default()[1]
 ee.Initialize(project=PROJECT_ID)
 
 # Load a raw Landsat 5 ImageCollection for a single year.
-collection = ee.ImageCollection('LANDSAT/LT05/C02/T1').filterDate(
+ls5_collection = ee.ImageCollection('LANDSAT/LT05/C02/T1').filterDate(
     '2010-01-01', '2010-12-31'
 )
 
 # Create a (mostly) cloud-free Landsat composite
-composite = ee.Algorithms.Landsat.simpleComposite(
-    collection,
+ls5_composite = ee.Algorithms.Landsat.simpleComposite(
+    ls5_collection,
     asFloat=True,
     cloudScoreRange=5)
 
@@ -36,12 +36,12 @@ sample_points_split = geebeam.sampler.split_sets(
 
 # Building and triggering the pipeline is done with a single command:
 geebeam.pipeline.run_pipeline(
-    image_list = [composite], # Important: has to be a list of images
-    crs='EPSG:4326',
+    image_list = [ls5_composite], # Important: has to be a list of images
+    crs='EPSG:4326', # CRS for final output
     sampling_points=sample_points_split, # Points we already generated
     output_type='tiff', # Output type: tiff with parquets for tabular data
     project=PROJECT_ID, # GCP Project ID
-    patch_size=128, # Pixel dimensions in each direction
+    patch_size=128, # Patch dimensions in each direction (# pixels)
     scale=30, # Final export resolution in meters
     output_path='./test_data/', # Output path, local or on GCP
 )

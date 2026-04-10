@@ -37,49 +37,51 @@ PROJECT_ID = google.auth.default()[1]
 # Initialize ee client, replace with your GCP project ID
 ee.Initialize(project=PROJECT_ID)
 
-# Build image for download
-burned_2024 = (ee.ImageCollection('MODIS/061/MCD64A1')
-            .select('BurnDate')
-            .filter(ee.Filter.calendarRange(2024, 2024, 'year'))
-            .min()
-            .gt(0)
-            .rename(['Burn'])
-            )
+### Build image for download
+# Load a raw Landsat 5 ImageCollection for a single year.
+ls5_collection = ee.ImageCollection('LANDSAT/LT05/C02/T1').filterDate(
+    '2010-01-01', '2010-12-31'
+)
+# Create a (mostly) cloud-free Landsat composite
+ls5_composite = ee.Algorithms.Landsat.simpleComposite(
+    ls5_collection,
+    asFloat=True,
+    cloudScoreRange=5)
 
 # Building and triggering the pipeline is done with a single command:
-geebeam.run_pipeline(
-    image_list = [burned_2024],
-    project=PROJECT_ID,
-    patch_size=128, # Pixel dimensions in each direction
-    scale=500, # Final export resolution in meters
+geebeam.sample_and_run_pipeline(
+    image_list = [ls5_composite], # Important: has to be a list of images
+    sampling_region=ee.Geometry.Rectangle(-55.0, -12.0, -50.0, -16.0), # In central-west Brazil
     n_sample=10, # Number of tiles to sample
+    patch_size=128, # Number of pixels in each direction
+    scale=30, # Final export resolution in meters
+    crs='EPSG:4326', # CRS for final output
+    project=PROJECT_ID, # GCP Project ID
+    output_path='./test_data/', # Output path, local or on GCP
     validation_ratio=0.2, # Fraction to select as validation data
-    output_path='./test_tf_data/',
-    sampling_region=ee.Geometry.Rectangle(-63.0, -9.0, -56.0, -4.0)
 )
 ```
 
-Now let's add another dataset: MapBiomas Amazonia forest fraction
+Now let's add another dataset: MapBiomas land-cover from same year. 
+For more info, and legend, see: [MapBiomas Brasil](https://brasil.mapbiomas.org/en/codigos-de-legenda/)
 ```python
-# MB Land-use/land-cover forest fraction
-# Note that LULC codes less than 10 area forest in MapBiomas Amazon Collection 6
-mb_amz_lulc = (
-    ee.Image('projects/mapbiomas-public/assets/amazon/lulc/collection6/mapbiomas_collection60_integration_v1')
-    .lt(10)
-   .reduceResolution('mean', maxPixels=500)
+# MB Land-use/land-cover
+mb_lulc = (
+    ee.Image('projects/mapbiomas-public/assets/brazil/lulc/collection10_1/mapbiomas_brazil_collection10_1_coverage_v1')
+    .select('classification_2010')
 )
 
 # Exporting both together is as simple as this:
-geebeam.run_pipeline(
-    image_list = [burned_2024, mb_amz_lulc],
+geebeam.sample_and_run_pipeline(
+    image_list = [ls5_composite, mb_lulc],
     project=PROJECT_ID,
+    crs='EPSG:4326',
     patch_size=128,
-    scale=500,
+    scale=30,
     n_sample=10,
     validation_ratio=0.2,
-    output_path='./test_tf_data/',
-    sampling_region=ee.Geometry.Rectangle(-63.0, -9.0, -56.0, -4.0),
-    num_workers=1
+    output_path='./test_data_w_mb/',
+    sampling_region=ee.Geometry.Rectangle(-55.0, -12.0, -50.0, -16.0)
 )
 ```
 
