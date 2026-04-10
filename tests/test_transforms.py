@@ -1,15 +1,15 @@
 import pytest
 import numpy as np
 from unittest.mock import MagicMock, patch
-from geebeam.transforms import split_dataset
+from geebeam._transforms import _split_dataset
 
-def test_split_dataset():
+def test__split_dataset():
     element = {'metadata': {'split': 'train'}}
-    assert split_dataset(element, 2) == 0
+    assert _split_dataset(element, 2) == 0
     element = {'metadata': {'split': 'val'}}
-    assert split_dataset(element, 2) == 1
+    assert _split_dataset(element, 2) == 1
     element = {'metadata': {'split': 'test'}}
-    assert split_dataset(element, 2) == 2
+    assert _split_dataset(element, 2) == 2
 
 # Testing EEComputePatch might be hard without a real EE session,
 # but we can mock the internal methods.
@@ -17,7 +17,7 @@ def test_split_dataset():
 @patch('ee.data.computePixels')
 @patch('ee.deserializer.fromJSON')
 def test_ee_compute_patch(mock_from_json, mock_compute_pixels, mock_ee_init):
-    from geebeam.transforms import EEComputePatch
+    from geebeam._transforms import EEComputePatch
 
     config = {
         'project_id': 'test-project',

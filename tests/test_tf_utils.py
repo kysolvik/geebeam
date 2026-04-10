@@ -1,13 +1,13 @@
 import tensorflow as tf
 import numpy as np
-from geebeam.tf_utils import _bytes_feature, _float_feature, _int64_feature, dict_to_example
+from geebeam._tf_utils import _bytes_feature, _float_feature, _int64_feature, _dict_to_example
 
 def test_features():
     assert isinstance(_bytes_feature(b'test'), tf.train.Feature)
     assert isinstance(_float_feature(0.5), tf.train.Feature)
     assert isinstance(_int64_feature(1), tf.train.Feature)
 
-def test_dict_to_example():
+def test__dict_to_example():
     element = {
         'metadata': {
             'id': 1,
@@ -20,7 +20,7 @@ def test_dict_to_example():
         }
     }
 
-    example_str = dict_to_example(element)
+    example_str = _dict_to_example(element)
     assert isinstance(example_str, bytes)
 
     example = tf.train.Example()
