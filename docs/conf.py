@@ -19,8 +19,7 @@ extensions = [
 ]
 autoapi_dirs = ['../src/geebeam']
 
-autoapi_options = ['members', 'show-module-summary',
-                   'imported-members']
+autoapi_options = ['members', 'show-module-summary']
 
 autodoc_typehints = 'description'
 autoapi_member_order = 'groupwise'
