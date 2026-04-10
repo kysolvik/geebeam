@@ -35,7 +35,7 @@ sample_points_split = geebeam.sampler.split_sets(
 )
 
 # Building and triggering the pipeline is done with a single command:
-geebeam.pipeline.run_pipeline(
+geebeam.run_pipeline(
     image_list = [ls5_composite], # Important: has to be a list of images
     crs='EPSG:4326', # CRS for final output
     sampling_points=sample_points_split, # Points we already generated

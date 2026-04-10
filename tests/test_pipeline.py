@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import patch, MagicMock
-from geebeam.pipeline import _prepare_run_metadata, _check_if_localrunner
+from geebeam._pipeline import _prepare_run_metadata, _check_if_localrunner
 from apache_beam.options.pipeline_options import PipelineOptions
 
 @patch('ee.Initialize')
