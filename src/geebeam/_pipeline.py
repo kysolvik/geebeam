@@ -219,8 +219,22 @@ def run_pipeline(
             md_feature_dict=md_feature_dict,
             pipeline_options=pipeline_options
         )
+    elif output_type == 'webdataset':
+        from geebeam import _wds_writer
+        _wds_writer.run_webdataset_export(
+            input_records=input_records,
+            splits=splits,
+            output_path=output_path,
+            config=config,
+            serialized_image=serialized_image,
+            band_groups=band_groups,
+            scale_x=scale_x,
+            scale_y=scale_y,
+            extra_metadata=extra_metadata,
+            pipeline_options=pipeline_options
+        )
     else:
-        raise ValueError(f"output_type {output_type} not implemented. Options are ['tfds', 'tfrecord', 'tiff']")
+        raise ValueError(f"output_type {output_type} not implemented. Options are ['tfds', 'tfrecord', 'tiff', 'webdataset']")
 
 def sample_and_run_pipeline(
         sampling_region: str | gpd.GeoDataFrame | ee.Geometry,
