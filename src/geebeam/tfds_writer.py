@@ -32,7 +32,6 @@ class _GeebeamBuilderConfig(tfds.core.BuilderConfig):
         self.tags = []
 
 
-
 class Geebeam(tfds.core.GeneratorBasedBuilder):
     """TFDS Builder for geebeam Earth Engine image chips dataset."""
 
