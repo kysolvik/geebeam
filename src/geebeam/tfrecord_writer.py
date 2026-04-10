@@ -8,6 +8,7 @@ from geebeam import transforms, tf_utils
 
 def run_tfrecord_export(
     input_records: list[dict],
+    splits: list[str],
     output_path: str,
     config: dict,
     serialized_image,
@@ -23,7 +24,7 @@ def run_tfrecord_export(
 
         points = pipeline | 'Create points' >> beam.Create(input_records)
 
-        training_data, validation_data = (
+        all_data = (
             points
             | 'Get patch' >> beam.ParDo(transforms.EEComputePatch(
                 config,
@@ -33,18 +34,26 @@ def run_tfrecord_export(
                 band_groups
                 ))
             | 'Add metadata' >> beam.ParDo(transforms.AddMetadata(extra_metadata))
-            | 'Split dataset' >> beam.Partition(transforms.split_dataset, 2)
         )
 
-        # Convert to TF examples
-        training_examples = (
-            training_data
-            | 'Train to tf.Example' >> beam.Map(tf_utils.dict_to_example)
+        # Write first split and calculate stats from it
+        split = splits[0]
+        output_dir = os.path.join(output_path, split)
+        train_data = (
+            all_data
+            | f'Filter {split}' >> beam.Filter(lambda record: record['metadata']['split'] == split)
+            | f'{split} to tf.Example' >> beam.Map(tf_utils.dict_to_example)
         )
+
+        # Write
+        _ = (train_data
+            | f'Write {split}' >> tf_utils.WriteTFExample(output_dir)
+        )
+
         # Calculate stats on training data
         decoder = example_coder.ExamplesToRecordBatchDecoder()
         stats = (
-            training_examples
+            train_data
             | 'Batch' >> beam.BatchElements(
                 min_batch_size=10,
                 max_batch_size=100)
@@ -54,22 +63,16 @@ def run_tfrecord_export(
         stats | 'Write stats' >> tfdv.WriteStatisticsToTFRecord(
             os.path.join(output_path, 'stats.tfrecord'))
 
-        # Write out examples
-        (training_examples
-         | 'Write training' >> tf_utils.WriteTFExample(
-             os.path.join(output_path, 'training'))
-        )
-        if config['validation_ratio'] > 0:
-            validation_examples = (
-                validation_data
-                | 'Val to tf.Example' >> beam.Map(tf_utils.dict_to_example)
-            )
-
-            (validation_examples
-            | 'Write validation' >> tf_utils.WriteTFExample(
-                os.path.join(output_path, 'validation'))
-            )
-
+        # Write out other splits
+        if len(splits) > 1:
+            for split in splits[1:]:
+                output_dir = os.path.join(output_path, split)
+                _ = (
+                    all_data
+                    | f'Filter {split}' >> beam.Filter(lambda record: record['metadata']['split'] == split)
+                    | f'{split} to tf.Example' >> beam.Map(tf_utils.dict_to_example)
+                    | f'Write {split}' >> tf_utils.WriteTFExample(output_dir)
+                )
 
     # Infer schema and write as separate pbtxt
     stats = tfdv.load_statistics(
