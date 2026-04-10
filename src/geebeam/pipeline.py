@@ -7,7 +7,7 @@ import pandas as pd
 from apache_beam.options.pipeline_options import PipelineOptions
 import numpy as np
 
-from geebeam import ee_utils, sampler, transforms
+from geebeam import _ee_utils, sampler, _transforms
 
 
 def _check_if_localrunner(pipeline_options):
@@ -151,13 +151,13 @@ def run_pipeline(
     # band_groups is a list of lists containing bands to export
     # if split_processing = False, will contain one list with all bands
     # if split_processing = True,  contains separate band_lists for each image in image_list
-    prepped_image, band_groups, all_bands = ee_utils.build_prepped_image(image_list, split_processing=split_processing)
-    serialized_image = ee_utils.serialize(prepped_image)
+    prepped_image, band_groups, all_bands = _ee_utils.build_prepped_image(image_list, split_processing=split_processing)
+    serialized_image = _ee_utils.serialize(prepped_image)
 
     # Execute pipeline based on output type:
     if output_type == 'tfrecord':
         try:
-            from geebeam import tfrecord_writer
+            from geebeam import _tfrecord_writer
         except ImportError:
             raise ImportError(
                 "Missing dependencies for tfrecord writer. "
@@ -165,9 +165,9 @@ def run_pipeline(
             )
         # Write sidecar schema before pipeline execution
         extra_keys = list(extra_metadata.keys())
-        transforms.write_sidecar_schema(output_path, all_bands, extra_keys,
+        _transforms.write_sidecar_schema(output_path, all_bands, extra_keys,
                                         is_gcs=output_path.startswith('gs://'))
-        tfrecord_writer.run_tfrecord_export(
+        _tfrecord_writer.run_tfrecord_export(
             input_records=input_records,
             splits=splits,
             output_path=output_path,
@@ -182,13 +182,13 @@ def run_pipeline(
         )
     elif output_type == 'tfds':
         try:
-            from geebeam import tfds_writer
+            from geebeam import _tfds_writer
         except ImportError:
             raise ImportError(
                 "Missing dependencies for TFDS writer. "
                 "Install them with `pip install geebeam[tensorflow]`"
             )
-        tfds_writer.run_tfds_export(
+        _tfds_writer.run_tfds_export(
             input_records=input_records,
             splits=splits,
             output_path=output_path,
@@ -205,8 +205,8 @@ def run_pipeline(
             dataset_version=dataset_version
         )
     elif output_type == 'tif' or output_type == 'tiff':
-        from geebeam import tiff_writer
-        tiff_writer.run_tiff_export(
+        from geebeam import _tiff_writer
+        _tiff_writer.run_tiff_export(
             input_records=input_records,
             splits=splits,
             output_path=output_path,

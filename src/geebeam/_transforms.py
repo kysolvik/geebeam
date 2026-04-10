@@ -1,4 +1,4 @@
-"""Beam transforms and related utilities"""
+"""Beam _transforms and related utilities"""
 
 import logging
 import time
@@ -10,7 +10,7 @@ from apache_beam.io.gcp.gcsio import GcsIO
 import apache_beam as beam
 import ee
 
-from geebeam import ee_utils
+from geebeam import _ee_utils
 
 def write_json_to_local(json_string, local_path):
     data = json_string.encode('utf-8')
@@ -113,8 +113,8 @@ class EEComputePatch(beam.DoFn):
             self._initialize_ee()
 
         t0 = time.time()
-        out_ars = ee_utils.get_pixels_allbands(
-            im=ee_utils.deserialize(self.serialized_image),
+        out_ars = _ee_utils.get_pixels_allbands(
+            im=_ee_utils.deserialize(self.serialized_image),
             band_groups=self.band_groups,
             point=point,
             patch_size=self.config['patch_size'],

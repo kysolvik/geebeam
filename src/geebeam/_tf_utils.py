@@ -4,7 +4,7 @@ import tensorflow as tf
 import apache_beam as beam
 import numpy as np
 
-from geebeam import transforms
+from geebeam import _transforms
 
 def _bytes_feature(value):
     """Returns a bytes_list from a string / byte."""
@@ -34,7 +34,7 @@ def dict_to_example(record):
         else:
             md_dict[f'md_{md_key}'] = tf.train.Feature(float_list=
                 tf.train.FloatList(
-                    value = transforms.convert_to_iterable(record['metadata'][md_key])
+                    value = _transforms.convert_to_iterable(record['metadata'][md_key])
                 )
             )
 

@@ -4,7 +4,7 @@ import os
 import apache_beam as beam
 from apache_beam.options.pipeline_options import PipelineOptions
 
-from geebeam import transforms, tf_utils
+from geebeam import _transforms, _tf_utils
 
 def run_tfrecord_export(
     input_records: list[dict],
@@ -27,14 +27,14 @@ def run_tfrecord_export(
 
         all_data = (
             points
-            | 'Get patch' >> beam.ParDo(transforms.EEComputePatch(
+            | 'Get patch' >> beam.ParDo(_transforms.EEComputePatch(
                 config,
                 serialized_image,
                 scale_x,
                 scale_y,
                 band_groups
                 ))
-            | 'Add metadata' >> beam.ParDo(transforms.AddMetadata(extra_metadata))
+            | 'Add metadata' >> beam.ParDo(_transforms.AddMetadata(extra_metadata))
         )
 
         # Write first split and calculate stats from it
@@ -43,12 +43,12 @@ def run_tfrecord_export(
         train_data = (
             all_data
             | f'Filter {split}' >> beam.Filter(lambda record: record['metadata']['split'] == split)
-            | f'{split} to tf.Example' >> beam.Map(tf_utils.dict_to_example)
+            | f'{split} to tf.Example' >> beam.Map(_tf_utils.dict_to_example)
         )
 
         # Write
         _ = (train_data
-            | f'Write {split}' >> tf_utils.WriteTFExample(output_dir)
+            | f'Write {split}' >> _tf_utils.WriteTFExample(output_dir)
         )
 
         # Calculate stats on training data
@@ -71,8 +71,8 @@ def run_tfrecord_export(
                 _ = (
                     all_data
                     | f'Filter {split}' >> beam.Filter(lambda record: record['metadata']['split'] == split)
-                    | f'{split} to tf.Example' >> beam.Map(tf_utils.dict_to_example)
-                    | f'Write {split}' >> tf_utils.WriteTFExample(output_dir)
+                    | f'{split} to tf.Example' >> beam.Map(_tf_utils.dict_to_example)
+                    | f'Write {split}' >> _tf_utils.WriteTFExample(output_dir)
                 )
 
     # Infer schema and write as separate pbtxt
