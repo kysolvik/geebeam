@@ -87,7 +87,9 @@ def run_pipeline(
         image_list: A list of image identifiers to process.
         sampling_points: Locations to sample from, specifying upper-left of box.
         output_path: The path where output will be saved.
-        output_type: 'tfrecord' (raw tfrecords) or 'tfds' (tensorflow-dataset).
+        output_type: 'tiff' (tiffs with parquet for metadata),
+            'webdataset' (tiffs with jsons, in sharded tars),
+            'tfrecord' (raw tfrecords), or 'tfds' (tensorflow-dataset).
         project: The Google Cloud project ID.
         patch_size: The size of the patches to be processed.
         scale: The scale factor for image processing.
@@ -254,7 +256,9 @@ def sample_and_run_pipeline(
         validation_ratio: Fraction of points to mark as validation.
         random_seed: Seed for random sampling
         output_path: The path where output will be saved.
-        output_type: 'tfrecord' (raw tfrecords) or 'tfds' (tensorflow-dataset).
+        output_type: 'tiff' (tiffs with parquet for metadata),
+            'webdataset' (tiffs with jsons, in sharded tars),
+            'tfrecord' (raw tfrecords), or 'tfds' (tensorflow-dataset).
         project: The Google Cloud project ID.
         patch_size: The size of the patches to be processed.
         scale: The scale factor for image processing.
@@ -300,7 +304,9 @@ def grid_and_run_pipeline(
             If greater, will be gaps between sampled patches.
         random_seed: Seed for random sampling
         output_path: The path where output will be saved.
-        output_type: 'tfrecord' (raw tfrecords) or 'tfds' (tensorflow-dataset).
+        output_type: 'tiff' (tiffs with parquet for metadata),
+            'webdataset' (tiffs with jsons, in sharded tars),
+            'tfrecord' (raw tfrecords), or 'tfds' (tensorflow-dataset).
         project: The Google Cloud project ID.
         patch_size: The size of the patches to be processed.
         scale: The scale factor for image processing.
