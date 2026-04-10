@@ -43,7 +43,7 @@ def run_tfrecord_export(
         train_data = (
             all_data
             | f'Filter {split}' >> beam.Filter(lambda record: record['metadata']['split'] == split)
-            | f'{split} to tf.Example' >> beam.Map(_tf_utils.dict_to_example)
+            | f'{split} to tf.Example' >> beam.Map(_tf_utils._dict_to_example)
         )
 
         # Write
@@ -71,7 +71,7 @@ def run_tfrecord_export(
                 _ = (
                     all_data
                     | f'Filter {split}' >> beam.Filter(lambda record: record['metadata']['split'] == split)
-                    | f'{split} to tf.Example' >> beam.Map(_tf_utils.dict_to_example)
+                    | f'{split} to tf.Example' >> beam.Map(_tf_utils._dict_to_example)
                     | f'Write {split}' >> _tf_utils.WriteTFExample(output_dir)
                 )
 

@@ -152,7 +152,7 @@ def run_pipeline(
     # if split_processing = False, will contain one list with all bands
     # if split_processing = True,  contains separate band_lists for each image in image_list
     prepped_image, band_groups, all_bands = _ee_utils.build_prepped_image(image_list, split_processing=split_processing)
-    serialized_image = _ee_utils.serialize(prepped_image)
+    serialized_image = _ee_utils._serialize(prepped_image)
 
     # Execute pipeline based on output type:
     if output_type == 'tfrecord':
@@ -165,7 +165,7 @@ def run_pipeline(
             )
         # Write sidecar schema before pipeline execution
         extra_keys = list(extra_metadata.keys())
-        _transforms.write_sidecar_schema(output_path, all_bands, extra_keys,
+        _transforms._write_sidecar_schema(output_path, all_bands, extra_keys,
                                         is_gcs=output_path.startswith('gs://'))
         _tfrecord_writer.run_tfrecord_export(
             input_records=input_records,

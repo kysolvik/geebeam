@@ -7,11 +7,11 @@ import io
 import ee
 import numpy as np
 
-def deserialize(obj_json):
+def _deserialize(obj_json):
     """Deserialize Earth Engine JSON DAG"""
     return ee.deserializer.fromJSON(obj_json)
 
-def serialize(obj_ee):
+def _serialize(obj_ee):
     """Serialize Earth Engine object to JSON for Dataflow workers"""
     return ee.serializer.toJSON(obj_ee)
 
