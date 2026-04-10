@@ -231,6 +231,24 @@ def sample_and_run_pipeline(
         *args,
         **kwargs
         ) -> None:
+    """Sample random points and then run a Beam pipeline to download image chips from Earth Engine.
+
+    Args:
+        image_list: A list of image identifiers to process.
+        sampling_region: Region to sample from, polygon or group of polygons.
+        n_sample: Number of points to sample.
+        validation_ratio: Fraction of points to mark as validation.
+        random_seed: Seed for random sampling
+        output_path: The path where output will be saved.
+        output_type: 'tfrecord' (raw tfrecords) or 'tfds' (tensorflow-dataset).
+        project: The Google Cloud project ID.
+        patch_size: The size of the patches to be processed.
+        scale: The scale factor for image processing.
+        crs: The coordinate reference system. Defaults to 'EPSG:4326'.
+        split_processing: Flag to indicate if processing should be split. Defaults to False.
+        extra_metadata: Additional metadata to include. Defaults to an empty dictionary.
+        beam_options_dict: Options for the Beam pipeline. Defaults to an empty dictionary.
+    """
 
     sample_points = sampler.sample_region_random(
         roi=sampling_region,
@@ -257,6 +275,26 @@ def grid_and_run_pipeline(
         *args,
         **kwargs
         ) -> None:
+    """Sample points from regular grid and then run a Beam pipeline to download image chips from Earth Engine.
+
+    Args:
+        image_list: A list of image identifiers to process.
+        sampling_region: Region to sample from, polygon or group of polygons.
+        validation_ratio: Fraction of points to mark as validation.
+        stride: Number of pixels between consecutive samples. If want full coverage without overlaps,
+            stride should be equal to patch_size. If less than patch_size, will generate overlaps.
+            If greater, will be gaps between sampled patches.
+        random_seed: Seed for random sampling
+        output_path: The path where output will be saved.
+        output_type: 'tfrecord' (raw tfrecords) or 'tfds' (tensorflow-dataset).
+        project: The Google Cloud project ID.
+        patch_size: The size of the patches to be processed.
+        scale: The scale factor for image processing.
+        crs: The coordinate reference system. Defaults to 'EPSG:4326'.
+        split_processing: Flag to indicate if processing should be split. Defaults to False.
+        extra_metadata: Additional metadata to include. Defaults to an empty dictionary.
+        beam_options_dict: Options for the Beam pipeline. Defaults to an empty dictionary.
+    """
 
     sample_points = sampler.sample_region_grid(
         roi=sampling_region,
