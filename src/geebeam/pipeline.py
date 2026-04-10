@@ -24,7 +24,7 @@ def _type_inference(val):
     elif isinstance(val, float):
         return 'float'
     elif isinstance(val, list) or isinstance(val, np.ndarray):
-        return 'arraylike'
+        return {'arraylike': np.array(val).shape}
     elif isinstance(val, str):
         return 'str'
     else:
@@ -198,6 +198,7 @@ def run_pipeline(
             scale_x=scale_x,
             scale_y=scale_y,
             extra_metadata=extra_metadata,
+            md_feature_dict=md_feature_dict,
             pipeline_options=pipeline_options,
             dataset_name=dataset_name,
             dataset_version=dataset_version
