@@ -125,7 +125,7 @@ def run_tiff_export(
     with beam.Pipeline(options=pipeline_options) as pipeline:
         points = pipeline | 'Create points' >> beam.Create(input_records)
 
-        # Get patches and metadata
+        # Get patches
         all_data = (
             points
             | 'Get patch' >> beam.ParDo(transforms.EEComputePatch(
