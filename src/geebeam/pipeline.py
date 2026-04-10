@@ -177,6 +177,7 @@ def run_pipeline(
             scale_x=scale_x,
             scale_y=scale_y,
             extra_metadata=extra_metadata,
+            md_feature_dict=md_feature_dict,
             pipeline_options=pipeline_options
         )
     elif output_type == 'tfds':

@@ -16,6 +16,7 @@ def run_tfrecord_export(
     scale_x: float,
     scale_y: float,
     extra_metadata: dict,
+    md_feature_dict: dict,
     pipeline_options: PipelineOptions
     ):
     import tensorflow_data_validation as tfdv
