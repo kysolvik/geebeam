@@ -288,6 +288,7 @@ def grid_and_run_pipeline(
         validation_ratio: float,
         scale: float,
         stride: int,
+        buffer_distance: float = 0,
         crs: str = 'EPSG:4326',
         random_seed: int = 0,
         *args,
@@ -321,6 +322,7 @@ def grid_and_run_pipeline(
         crs='EPSG:4326',
         stride=stride,
         scale=scale,
+        buffer_distance=buffer_distance,
     )
 
     if validation_ratio > 0:
