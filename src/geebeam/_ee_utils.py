@@ -39,7 +39,7 @@ def build_prepped_image(input_list, split_processing=False):
     return prepped_im, band_groups, band_names_flat.getInfo()
 
 def list_to_im(input_list):
-    prepped_im, _ = build_prepped_image(input_list)
+    prepped_im, *_ = build_prepped_image(input_list)
     return prepped_im
 
 def get_pixels(im, point, patch_size, scale_x, scale_y, crs_code):
