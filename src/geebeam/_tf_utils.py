@@ -59,16 +59,6 @@ def _dict_to_example(record):
     return tf.train.Example(
         features = tf.train.Features(feature = feature)).SerializeToString()
 
-def _array_to_example(structured_array):
-    """"Convert structured numpy array to tf.Example proto."""
-    feature = {}
-    for f in structured_array.dtype.names:
-        feature[f] = tf.train.Feature(
-            float_list = tf.train.FloatList(
-                value = structured_array[f].flatten()))
-    return tf.train.Example(
-        features = tf.train.Features(feature = feature))
-
 class WriteTFExample(beam.PTransform):
     """Write example"""
     def __init__(self, output_dir, file_name_suffix='.tfrecord.gz'):
