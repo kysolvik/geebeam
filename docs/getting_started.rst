@@ -4,7 +4,7 @@ Getting Started
 In this tutorial we will download a set of Landsat 8 image patches from a
 region of central-west Brazil and save them as GeoTIFFs on your local machine.
 By the end you will have real files you can open in QGIS, rasterio, or any GIS
-tool — and a working mental model of how ``geabeam`` pipelines are structured.
+tool — and a working mental model of how ``geebeam`` pipelines are structured.
 
 .. note::
 
@@ -82,8 +82,8 @@ Or just set it directly::
 Step 1: Define the image you want
 ----------------------------------
 
-``geabeam`` downloads image "chips" — fixed-size pixel patches — from any
-``ee.Image`` you can build with the Earth Engine Python API. You tell ``geabeam``
+``geebeam`` downloads image "chips" — fixed-size pixel patches — from any
+``ee.Image`` you can build with the Earth Engine Python API. You tell ``geebeam``
 *what* to download; it handles the parallelism and file writing.
 
 Here we'll build a cloud-free Landsat 8 composite for 2023:
@@ -105,7 +105,7 @@ Here we'll build a cloud-free Landsat 8 composite for 2023:
 A few things to notice:
 
 - ``image_list`` (used in the next step) must be a **Python list** of
-  ``ee.Image`` objects, even when you only have one image. This is how ``geabeam``
+  ``ee.Image`` objects, even when you only have one image. This is how ``geebeam``
   knows how to split bands across workers when needed.
 - The image is not downloaded yet — this is just an EE graph definition. Nothing
   leaves Google's servers until the pipeline runs. When that happens, ``geebeam``
@@ -205,7 +205,7 @@ You can also read the metadata table:
 Adding a second image
 ----------------------
 
-One of the main reasons to use ``geabeam`` is that downloading many datasets in a
+One of the main reasons to use ``geebeam`` is that downloading many datasets in a
 single pipeline is just as easy as downloading one. The bands from every image in
 ``image_list`` are stacked into the same chip/patch files:
 
@@ -240,7 +240,7 @@ Splitting processing to avoid the 50 MB limit
 ----------------------------------------------
 
 Each call to Earth Engine's ``computePixels`` API is capped at **50 MB** per
-response. By default ``geabeam`` combines all bands from all images in
+response. By default ``geebeam`` combines all bands from all images in
 ``image_list`` into a single request per patch, so you can hit this limit with
 large patches or many bands.
 
@@ -252,7 +252,7 @@ A rough estimate of response size:
    e.g. 512 × 512 × 48 bands × 4 bytes (float32) ≈ 50 MB
 
 When you expect to be near or over the limit, pass ``split_processing=True``.
-This makes ``geabeam`` issue **one** ``computePixels`` request per image in
+This makes ``geebeam`` issue **one** ``computePixels`` request per image in
 ``image_list`` instead of one combined request, so each individual call stays
 well under the cap:
 
@@ -299,7 +299,7 @@ runner options:
        --machine_type=n2-highmem-2 \
        --experiments=use_runner_v2
 
-Set ``output_path`` to a ``gs://`` path and ``geabeam`` will write directly to
+Set ``output_path`` to a ``gs://`` path and ``geebeam`` will write directly to
 Google Cloud Storage. See the
 `Dataflow documentation <https://cloud.google.com/dataflow/docs>`_ for full
 option reference.
