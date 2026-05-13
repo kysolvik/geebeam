@@ -128,6 +128,20 @@ def run_pipeline(
 
     logging.getLogger().setLevel(logging.INFO)
 
+    if isinstance(image_list, ee.ImageCollection):
+        raise ValueError(
+            'image_list must be a list of ee.Image objects, not an ee.ImageCollection. '
+            'Convert first with image_list = [collection.mosaic()] or similar.'
+        )
+    if isinstance(image_list, ee.Image):
+        warnings.warn(
+            'image_list should be a list of ee.Image objects. '
+            'Wrapping provided single ee.Image in a list and continuing.',
+            UserWarning,
+            stacklevel=2
+        )
+        image_list = [image_list]
+
     # Set up configuration dict to pass along
     config = {
         'project_id': project,
