@@ -8,6 +8,8 @@ Contents
 
 .. toctree::
 
+   getting_started
+
 .. note::
 
    This project is under active development.
