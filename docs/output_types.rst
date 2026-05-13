@@ -75,8 +75,7 @@ order they were passed. The Parquet file has one row per patch with columns
 
    df = pd.read_parquet("output/metadata-00000-of-00001.parquet")
 
-GeoTIFF is the most portable format and the best starting point if you are
-not sure which format to use.
+GeoTIFF is the simplest format and often the best starting point.
 
 
 WebDataset
@@ -105,8 +104,8 @@ metadata file (``{id}.json``).
    └── validation-<worker-id>-000000.tar
 
 Each ``.tar`` contains alternating ``.tif`` and ``.json`` entries. The
-worker ID in the filename is a short UUID that prevents shard collisions
-when multiple Beam workers write in parallel.
+worker ID in the filename is just there to prevent problems when multiple
+Beam workers write in parallel.
 
 **Reading the output:**
 
@@ -129,7 +128,7 @@ when multiple Beam workers write in parallel.
 
 WebDataset works well with PyTorch ``DataLoader`` and is a good choice for
 large-scale training pipelines that stream data directly from Google Cloud
-Storage without materialising it locally.
+Storage without downloading it locally.
 
 
 TensorFlow Datasets
@@ -182,9 +181,9 @@ TFRecord
    ``"tiff"`` or ``"tfds"`` instead. Choose TFRecord only if you
    specifically need to compute dataset statistics with
    `TensorFlow Data Validation <https://www.tensorflow.org/tfx/data_validation/get_started>`_
-   (TFDV) — that is the only thing this format provides over ``"tfds"`` that
-   does not also come with significant drawbacks (no standard loading API,
-   harder to inspect, schema coupling).
+   (TFDV) — that is the only thing this format provides over ``"tfds"``. 
+   The TFRecord ``output_type`` comes some drawbacks (no standard loading API,
+   harder to inspect, needs semi-manual schema coupling).
 
 **Install:**
 
@@ -215,7 +214,7 @@ TFRecord
    └── stats.tfrecord   ← TFDV statistics (training split only)
 
 The pipeline automatically computes TFDV statistics over the training split
-and writes them alongside the records. This is the primary reason to choose
+and writes them alongside the records. This is the main reason to choose
 this format — if you want to validate feature distributions, detect anomalies,
 or generate a data schema for a TFX pipeline. If you do not need TFDV stats,
-``"tfds"`` gives you a better reading API with no extra cost.
+``"tfds"`` makes it much easier to read and use the data after download.
