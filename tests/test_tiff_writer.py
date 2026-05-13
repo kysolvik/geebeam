@@ -10,12 +10,12 @@ def test_build_tiff_name():
     assert _build_tiff_name(0) == '00000.tif'
 
 def test_write_tiff_process(tmp_path):
+    """WriteTiff uses x_topleft/y_topleft for the geotransform when present."""
     output_dir = str(tmp_path)
-    crs = 'EPSG:4326'
     scale_x = 0.0001
     scale_y = -0.0001
 
-    writer = WriteTiff(output_path=output_dir, crs=crs, scale_x=scale_x, scale_y=scale_y)
+    writer = WriteTiff(output_path=output_dir, crs='EPSG:4326', scale_x=scale_x, scale_y=scale_y)
     writer.setup()
 
     array_dict = {
@@ -23,7 +23,7 @@ def test_write_tiff_process(tmp_path):
         'band2': np.zeros((4, 4), dtype=np.float32),
     }
     element = {
-        'metadata': {'id': 1, 'x': 10.0, 'y': 20.0, 'split': 'train'},
+        'metadata': {'id': 1, 'x': 10.0, 'y': 20.0, 'x_topleft': 5.0, 'y_topleft': 15.0, 'split': 'train'},
         'array': array_dict,
     }
 
@@ -36,6 +36,24 @@ def test_write_tiff_process(tmp_path):
         assert ds.count == 2
         assert ds.width == 4
         assert ds.height == 4
+        assert ds.transform.c == pytest.approx(5.0)   # translateX = x_topleft
+        assert ds.transform.f == pytest.approx(15.0)  # translateY = y_topleft
+
+def test_write_tiff_process_fallback_to_xy(tmp_path):
+    """WriteTiff falls back to x/y for the geotransform when x_topleft/y_topleft are absent."""
+    output_dir = str(tmp_path)
+    writer = WriteTiff(output_path=output_dir, crs='EPSG:4326', scale_x=0.0001, scale_y=-0.0001)
+    writer.setup()
+
+    element = {
+        'metadata': {'id': 2, 'x': 10.0, 'y': 20.0, 'split': 'train'},
+        'array': {'band1': np.ones((4, 4), dtype=np.float32)},
+    }
+    writer.process(element)
+
+    with rasterio.open(os.path.join(output_dir, '00002.tif')) as ds:
+        assert ds.transform.c == pytest.approx(10.0)
+        assert ds.transform.f == pytest.approx(20.0)
 
 def test_process_metadata_to_parquet(tmp_path):
     output_dir = str(tmp_path)

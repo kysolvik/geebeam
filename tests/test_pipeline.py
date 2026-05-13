@@ -3,6 +3,7 @@ import numpy as np
 from unittest.mock import patch, MagicMock
 from geebeam._pipeline import (
     _prepare_run_metadata,
+    _apply_position_offset,
     _check_if_localrunner,
     _type_inference,
     _build_md_feature_dict,
@@ -80,6 +81,46 @@ def test_build_md_feature_dict_invalid_type():
     extra_metadata = {'bad': {'nested': 'dict'}}
     with pytest.raises(ValueError):
         _build_md_feature_dict(record, extra_metadata)
+
+PATCH_SIZE = 10
+SCALE_X = 0.001
+SCALE_Y = 0.001
+# Top-left corner of a known patch
+X0, Y0 = 10.0, 20.0
+
+def _records_at_position(position):
+    """Build a single record whose x/y is at the given position of the patch anchored at (X0, Y0)."""
+    offsets = {
+        'top-left':     (0,                       0),
+        'top-right':    (PATCH_SIZE * SCALE_X,    0),
+        'bottom-left':  (0,                       PATCH_SIZE * SCALE_Y),
+        'bottom-right': (PATCH_SIZE * SCALE_X,    PATCH_SIZE * SCALE_Y),
+        'center':       (PATCH_SIZE / 2 * SCALE_X, PATCH_SIZE / 2 * SCALE_Y),
+    }
+    dx, dy = offsets[position]
+    return [{'id': 0, 'x': X0 + dx, 'y': Y0 + dy, 'split': 'full'}]
+
+@pytest.mark.parametrize('position', ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'center'])
+def test_apply_position_offset_topleft_roundtrip(position):
+    """All five positions on the same patch should yield the same top-left corner."""
+    records = _records_at_position(position)
+    result = _apply_position_offset(records, position, PATCH_SIZE, SCALE_X, SCALE_Y)
+    assert pytest.approx(result[0]['x_topleft']) == X0
+    assert pytest.approx(result[0]['y_topleft']) == Y0
+
+@pytest.mark.parametrize('position', ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'center'])
+def test_apply_position_offset_preserves_original_xy(position):
+    """Original x/y (the sampling location) must not be modified."""
+    records = _records_at_position(position)
+    original_x, original_y = records[0]['x'], records[0]['y']
+    result = _apply_position_offset(records, position, PATCH_SIZE, SCALE_X, SCALE_Y)
+    assert result[0]['x'] == original_x
+    assert result[0]['y'] == original_y
+
+def test_apply_position_offset_invalid_position():
+    records = [{'id': 0, 'x': 1.0, 'y': 2.0}]
+    with pytest.raises(ValueError, match='Invalid position'):
+        _apply_position_offset(records, 'middle', PATCH_SIZE, SCALE_X, SCALE_Y)
 
 def test_run_pipeline_invalid_output_type():
     with pytest.raises(ValueError):

@@ -62,26 +62,38 @@ def _make_npy_bytes(patch_size=4, band_name='band1'):
     return buf.getvalue()
 
 @patch('ee.data.computePixels')
-def test_get_pixels(mock_compute_pixels):
+def test_get_pixels_uses_topleft_coords(mock_compute_pixels):
+    """get_pixels should use x_topleft/y_topleft for the GEE affine transform when present."""
     patch_size = 4
-    raw_bytes = _make_npy_bytes(patch_size=patch_size, band_name='band1')
-    mock_compute_pixels.return_value = raw_bytes
+    mock_compute_pixels.return_value = _make_npy_bytes(patch_size=patch_size, band_name='band1')
 
-    mock_im = MagicMock()
+    point = {'id': 0, 'x': 10.0, 'y': 20.0, 'x_topleft': 5.0, 'y_topleft': 15.0}
+    get_pixels(MagicMock(), point, patch_size, scale_x=30.0, scale_y=-30.0, crs_code='EPSG:4326')
+
+    request = mock_compute_pixels.call_args[0][0]
+    assert request['grid']['affineTransform']['translateX'] == 5.0
+    assert request['grid']['affineTransform']['translateY'] == 15.0
+
+@patch('ee.data.computePixels')
+def test_get_pixels_falls_back_to_xy(mock_compute_pixels):
+    """get_pixels falls back to x/y when x_topleft/y_topleft are absent."""
+    patch_size = 4
+    mock_compute_pixels.return_value = _make_npy_bytes(patch_size=patch_size, band_name='band1')
+
     point = {'id': 0, 'x': 10.0, 'y': 20.0}
-    result = get_pixels(mock_im, point, patch_size, scale_x=30.0, scale_y=-30.0, crs_code='EPSG:4326')
+    get_pixels(MagicMock(), point, patch_size, scale_x=30.0, scale_y=-30.0, crs_code='EPSG:4326')
 
-    assert result.shape == (patch_size, patch_size)
-    assert 'band1' in result.dtype.names
+    request = mock_compute_pixels.call_args[0][0]
+    assert request['grid']['affineTransform']['translateX'] == 10.0
+    assert request['grid']['affineTransform']['translateY'] == 20.0
 
 @patch('ee.data.computePixels')
 def test_get_pixels_empty_response(mock_compute_pixels):
     mock_compute_pixels.return_value = b''
 
-    mock_im = MagicMock()
     point = {'id': 0, 'x': 10.0, 'y': 20.0}
     with pytest.raises(RuntimeError, match='Empty EE response'):
-        get_pixels(mock_im, point, 4, scale_x=30.0, scale_y=-30.0, crs_code='EPSG:4326')
+        get_pixels(MagicMock(), point, 4, scale_x=30.0, scale_y=-30.0, crs_code='EPSG:4326')
 
 @patch('ee.data.computePixels')
 def test_get_pixels_allbands_two_groups(mock_compute_pixels):
@@ -92,7 +104,7 @@ def test_get_pixels_allbands_two_groups(mock_compute_pixels):
     mock_im = MagicMock()
     mock_im.select.return_value = mock_im
 
-    point = {'id': 0, 'x': 10.0, 'y': 20.0}
+    point = {'id': 0, 'x': 10.0, 'y': 20.0, 'x_topleft': 10.0, 'y_topleft': 20.0}
     band_groups = [['band1'], ['band1']]
     results = get_pixels_allbands(mock_im, band_groups, point, patch_size,
                                   scale_x=30.0, scale_y=-30.0, crs_code='EPSG:4326')
