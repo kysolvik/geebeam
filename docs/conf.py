@@ -23,7 +23,7 @@ autoapi_options = ['members', 'show-module-summary', 'imported-members']
 autodoc_typehints = 'description'
 autoapi_member_order = 'groupwise'
 autoapi_add_toctree_entry = True
-autoapi_own_page_level = 'module'
+autoapi_own_page_level = 'function'
 napoleon_numpy_docstring = False
 napoleon_google_docstring = True
 
