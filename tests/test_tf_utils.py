@@ -7,7 +7,7 @@ def test_features():
     assert isinstance(_float_feature(0.5), tf.train.Feature)
     assert isinstance(_int64_feature(1), tf.train.Feature)
 
-def test__dict_to_example():
+def test_dict_to_example():
     element = {
         'metadata': {
             'id': 1,

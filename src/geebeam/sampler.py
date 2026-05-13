@@ -125,7 +125,6 @@ def sample_region_grid(
     x_locs = np.arange(xmin, xmax+scale_proj*stride, scale_proj*stride)
     y_locs = np.arange(ymin, ymax+scale_proj*stride, scale_proj*stride)
     meshgrid = np.array(np.meshgrid(x_locs, y_locs)).T.reshape(-1, 2)
-    print(meshgrid.shape)
     x_all, y_all = meshgrid[:,0],  meshgrid[:,1]
 
     points_gdf = gpd.GeoDataFrame(geometry=gpd.points_from_xy(x_all, y_all), crs=crs)

@@ -58,3 +58,8 @@ include = [
   "pyproject.toml",
   "setup.py"
 ]
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: marks tests as integration tests (slower)",
+]
