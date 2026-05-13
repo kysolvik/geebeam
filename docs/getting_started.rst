@@ -327,5 +327,28 @@ What's next
   or output_type="tfds"` (requires ``pip install geebeam[tensorflow]``) to 
   write as a Tensorflow dataset. See :doc:`output_types` for more info.
 - **API reference** — full parameter documentation for all three pipeline
-  functions is in the :doc:`autoapi/geebeam/index` page.
+  functions is on the :doc:`autoapi/geebeam/index` page.
+
+
+Get Help / Contribute
+---------------------
+
+If you run into a problem or have a question, please
+`open an issue <https://github.com/kysolvik/geebeam/issues>`_ on GitHub.
+Check the existing issues first — your question may already be asked/answered.
+
+Contributions are welcome. Some ways to help:
+
+- **Report a bug or request a feature** — open an issue describing what you
+  encountered or what you'd like to see.
+- **Add a new feature** — browse the
+  `issue tracker <https://github.com/kysolvik/geebeam/issues>`_ for ideas,
+  then submit a pull request against the
+  `main repository <https://github.com/kysolvik/geebeam>`_.
+- **Write examples** — new notebooks or scripts showing real-world usage are
+  always appreciated.
+
+Please be considerate and respectful in all interactions. See the project's
+`code of conduct <https://github.com/kysolvik/geebeam/blob/main/CODE_OF_CONDUCT.md>`_
+for details.
 
