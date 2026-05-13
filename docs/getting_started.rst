@@ -183,7 +183,8 @@ Open a chip with rasterio to confirm it looks right:
        print("Shape:", ds.height, "×", ds.width)
 
        # Read RGB bands (B4=red, B3=green, B2=blue in Landsat 8 L2)
-       r, g, b = ds.read(2), ds.read(1), ds.read(0)
+       # Rasterio bands are 1-indexed (start at 1 instead of 0)
+       r, g, b = ds.read(3), ds.read(2), ds.read(1)
 
    rgb = np.stack([r, g, b], axis=-1).astype(float)
    rgb = (rgb - rgb.min()) / (rgb.max() - rgb.min() + 1e-6)   # stretch to [0, 1]
@@ -197,8 +198,10 @@ You can also read the metadata table:
 .. code-block:: python
 
    import pandas as pd
+   import glob
 
-   df = pd.read_parquet("tutorial_output/metadata-00000-of-00001.parquet")
+   first_parquet = glob.glob('tutorial_output/metadata-00000*.parquet')[0]
+   df = pd.read_parquet(first_parquet)
    print(df[["id", "x", "y", "x_topleft", "y_topleft", "split", "image_path"]])
 
 
