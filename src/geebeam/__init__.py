@@ -7,7 +7,7 @@ except PackageNotFoundError:
     __version__ = "unknown"    
     
 from . import sampler
-from ._pipeline import run_pipeline, sample_and_run_pipeline, grid_and_run_pipeline
+from .pipeline import run_pipeline, sample_and_run_pipeline, grid_and_run_pipeline
 
 __all__ = [
     "sampler",

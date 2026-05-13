@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 from unittest.mock import patch, MagicMock
-from geebeam._pipeline import (
+from geebeam.pipeline import (
     _prepare_run_metadata,
     _apply_position_offset,
     _check_if_localrunner,
