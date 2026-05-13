@@ -75,9 +75,15 @@ def run_tfrecord_export(
                     | f'Write {split}' >> _tf_utils.WriteTFExample(output_dir)
                 )
 
-    # Infer schema and write as separate pbtxt
+    # Post-processing to infer schema and reformat stats record
     stats = tfdv.load_statistics(
         os.path.join(output_path, 'stats.tfrecord')
+    )
+
+    # Also write stats as pbtxt for reading without tvdf
+    tfdv.write_stats_text(
+        stats,
+        os.path.join(output_path, 'stats.pbtxt')
     )
 
     schema = tfdv.infer_schema(stats)
