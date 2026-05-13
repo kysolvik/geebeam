@@ -47,8 +47,8 @@ class WriteTiff(beam.DoFn):
         
         # Construct affine transform
         transform = Affine(
-            self.scale_x, 0, metadata['x'],
-            0, self.scale_y, metadata['y']
+            self.scale_x, 0, metadata.get('x_topleft', metadata['x']),
+            0, self.scale_y, metadata.get('y_topleft', metadata['y'])
         )
         
         # Write to a local temporary file first

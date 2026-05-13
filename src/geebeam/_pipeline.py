@@ -66,6 +66,28 @@ def _prepare_run_metadata(config):
 
     return scale_x, scale_y
 
+
+def _apply_position_offset(input_records, position, patch_size, scale_x, scale_y):
+    """Add x_topleft/y_topleft to each record; original x/y (the sampling location) is preserved."""
+    _valid_positions = {'center', 'top-left', 'top-right', 'bottom-left', 'bottom-right'}
+    if position == 'top-left':
+        dx, dy = 0, 0
+    elif position == 'center':
+        dx = -(patch_size / 2) * scale_x
+        dy = -(patch_size / 2) * scale_y
+    elif position == 'top-right':
+        dx = -patch_size * scale_x
+        dy = 0
+    elif position == 'bottom-left':
+        dx = 0
+        dy = -patch_size * scale_y
+    elif position == 'bottom-right':
+        dx = -patch_size * scale_x
+        dy = -patch_size * scale_y
+    else:
+        raise ValueError(f"Invalid position '{position}'. Must be one of: {sorted(_valid_positions)}")
+    return [{**r, 'x_topleft': r['x'] + dx, 'y_topleft': r['y'] + dy} for r in input_records]
+
 def run_pipeline(
         image_list: list[ee.Image],
         output_path: str,
@@ -79,13 +101,15 @@ def run_pipeline(
         extra_metadata: dict = {},
         beam_options: dict[str] | list[str] | None = None,
         dataset_version: str = '1.0.0',
-        dataset_name: str = 'geebeam_dataset'
+        dataset_name: str = 'geebeam_dataset',
+        position: str = 'center'
         ) -> None:
     """Run a Beam pipeline to download image chips from Earth Engine.
 
     Args:
         image_list: A list of image identifiers to process.
-        sampling_points: Locations to sample from, specifying upper-left of box.
+        sampling_points: Locations to sample from. The position of each point relative
+            to the patch is controlled by the ``position`` argument.
         output_path: The path where output will be saved.
         output_type: 'tiff' (tiffs with parquet for metadata),
             'webdataset' (tiffs with jsons, in sharded tars),
@@ -97,6 +121,8 @@ def run_pipeline(
         split_processing: Flag to indicate if processing should be split. Defaults to False.
         extra_metadata: Additional metadata to include. Defaults to an empty dictionary.
         beam_options_dict: Options for the Beam pipeline. Defaults to an empty dictionary.
+        position: Where the sampling point falls within the patch. One of 'center'
+            (default), 'top-left', 'top-right', 'bottom-left', 'bottom-right'.
     """
     import logging
 
@@ -134,11 +160,14 @@ def run_pipeline(
     # Get sample points
     input_records, splits = sampler._process_sampling_points(sampling_points, target_crs=config['crs'])
 
-    # Get types of extra non-image data in extra_medtada or input_records
-    md_feature_dict = _build_md_feature_dict(input_records[0], extra_metadata)
-
     # Pre-run info:
     scale_x, scale_y = _prepare_run_metadata(config)
+
+    # Offset sampling location (x, y) -> (x_topleft, y_topleft) based on position arg
+    input_records = _apply_position_offset(input_records, position, patch_size, scale_x, scale_y)
+
+    # Get types of extra non-image data in extra_metadata or input_records
+    md_feature_dict = _build_md_feature_dict(input_records[0], extra_metadata)
 
     # Check if a local runner. If so, add longer job timeout to fix grpcio timeout issue
     is_local = _check_if_localrunner(pipeline_options)
@@ -244,6 +273,7 @@ def sample_and_run_pipeline(
         validation_ratio: float = 0,
         random_seed: int = 0,
         crs: str = 'EPSG:4326',
+        position: str = 'center',
         *args,
         **kwargs
         ) -> None:
@@ -266,6 +296,8 @@ def sample_and_run_pipeline(
         split_processing: Flag to indicate if processing should be split. Defaults to False.
         extra_metadata: Additional metadata to include. Defaults to an empty dictionary.
         beam_options_dict: Options for the Beam pipeline. Defaults to an empty dictionary.
+        position: Where the sampling point falls within the patch. One of 'center'
+            (default), 'top-left', 'top-right', 'bottom-left', 'bottom-right'.
     """
 
     sample_points = sampler.sample_region_random(
@@ -281,7 +313,7 @@ def sample_and_run_pipeline(
             random_seed=random_seed
         )
 
-    return run_pipeline(sampling_points=sample_points, crs=crs, *args, **kwargs)
+    return run_pipeline(sampling_points=sample_points, crs=crs, position=position, *args, **kwargs)
 
 def grid_and_run_pipeline(
         sampling_region: str | gpd.GeoDataFrame | ee.Geometry,
@@ -291,6 +323,7 @@ def grid_and_run_pipeline(
         buffer_distance: float = 0,
         crs: str = 'EPSG:4326',
         random_seed: int = 0,
+        position: str = 'center',
         *args,
         **kwargs
         ) -> None:
@@ -315,6 +348,8 @@ def grid_and_run_pipeline(
         split_processing: Flag to indicate if processing should be split. Defaults to False.
         extra_metadata: Additional metadata to include. Defaults to an empty dictionary.
         beam_options_dict: Options for the Beam pipeline. Defaults to an empty dictionary.
+        position: Where the sampling point falls within the patch. One of 'center'
+            (default), 'top-left', 'top-right', 'bottom-left', 'bottom-right'.
     """
 
     sample_points = sampler.sample_region_grid(
@@ -331,4 +366,4 @@ def grid_and_run_pipeline(
             random_seed=random_seed
         )
 
-    return run_pipeline(sampling_points=sample_points, crs=crs, scale=scale, *args, **kwargs)
+    return run_pipeline(sampling_points=sample_points, crs=crs, scale=scale, position=position, *args, **kwargs)
