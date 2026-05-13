@@ -19,8 +19,8 @@ def _create_tiff_bytes(array_dict, metadata, crs, scale_x, scale_y):
     dtype = first_band.dtype
     
     transform = Affine(
-        scale_x, 0, metadata['x'],
-        0, scale_y, metadata['y']
+        scale_x, 0, metadata.get('x_topleft', metadata['x']),
+        0, scale_y, metadata.get('y_topleft', metadata['y'])
     )
     
     with MemoryFile() as memfile:

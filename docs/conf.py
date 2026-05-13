@@ -14,7 +14,6 @@ extensions = [
     'sphinx.ext.doctest',
     'sphinx.ext.intersphinx',
     'autoapi.extension',
-    'sphinx.ext.autodoc.typehints',
     'sphinx.ext.napoleon'
 ]
 autoapi_dirs = ['../src/geebeam']
