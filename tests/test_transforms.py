@@ -1,5 +1,4 @@
 import json
-import pytest
 import numpy as np
 from unittest.mock import MagicMock, patch
 from geebeam._transforms import (

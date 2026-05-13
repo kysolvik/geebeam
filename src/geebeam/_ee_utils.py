@@ -55,10 +55,10 @@ def get_pixels(im, point, patch_size, scale_x, scale_y, crs_code):
             'affineTransform': {
                 'scaleX': scale_x,
                 'shearX': 0,
-                'translateX': point['x'],
+                'translateX': point.get('x_topleft', point['x']),
                 'shearY': 0,
                 'scaleY': scale_y,
-                'translateY': point['y']
+                'translateY': point.get('y_topleft', point['y'])
             },
             'crsCode': crs_code
         },

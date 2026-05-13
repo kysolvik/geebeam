@@ -1,8 +1,6 @@
 import pytest
 import pandas as pd
 import geopandas as gpd
-import numpy as np
-import shapely
 from shapely.geometry import box
 from unittest.mock import MagicMock, patch
 from geebeam.sampler import (

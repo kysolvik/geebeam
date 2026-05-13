@@ -1,6 +1,5 @@
 import io
 import json
-import pytest
 import numpy as np
 import rasterio
 from geebeam._wds_writer import _create_tiff_bytes, ProcessToWebDataset
