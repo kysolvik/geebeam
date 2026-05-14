@@ -1,5 +1,6 @@
 import pytest
 import numpy as np
+import ee
 from unittest.mock import patch, MagicMock
 from geebeam.pipeline import (
     _prepare_run_metadata,
@@ -121,6 +122,40 @@ def test_apply_position_offset_invalid_position():
     records = [{'id': 0, 'x': 1.0, 'y': 2.0}]
     with pytest.raises(ValueError, match='Invalid position'):
         _apply_position_offset(records, 'middle', PATCH_SIZE, SCALE_X, SCALE_Y)
+
+@patch('ee.Initialize')
+@patch('ee.Projection')
+def test_run_pipeline_wraps_single_image(mock_projection, mock_ee_init):
+    """A bare ee.Image passed as image_list should warn and be wrapped in a list."""
+    mock_proj_obj = MagicMock()
+    mock_proj_obj.getInfo.return_value = {'transform': [0.001, 0, 0, 0, -0.001, 0]}
+    mock_projection.return_value.atScale.return_value = mock_proj_obj
+
+    single_image = MagicMock(spec=ee.Image)
+    with pytest.warns(UserWarning, match='Wrapping provided single ee.Image'):
+        try:
+            run_pipeline(
+                image_list=single_image,
+                output_path='/tmp/test',
+                project='test-project',
+                patch_size=4,
+                scale=30.0,
+                sampling_points=MagicMock(),
+            )
+        except Exception:
+            pass  # pipeline will fail further on; we only care the warning fired
+
+def test_run_pipeline_rejects_image_collection():
+    """An ee.ImageCollection passed as image_list should raise ValueError."""
+    with pytest.raises(ValueError, match='ee.ImageCollection'):
+        run_pipeline(
+            image_list=MagicMock(spec=ee.ImageCollection),
+            output_path='/tmp/test',
+            project='test-project',
+            patch_size=4,
+            scale=30.0,
+            sampling_points=MagicMock(),
+        )
 
 def test_run_pipeline_invalid_output_type():
     with pytest.raises(ValueError):
