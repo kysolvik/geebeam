@@ -103,9 +103,9 @@ Here we'll build a cloud-free Landsat 8 composite for 2023:
    )
 
 The image is not downloaded yet — this is just an EE graph definition (the "recipe" for 
-  creating the image). Nothing leaves Google's servers until the pipeline runs. 
-  When that happens, ``geebeam`` will automatically serialize the  graph definition and 
-  send it to the workers to start downloading patches, all with one command!
+creating the image). Nothing leaves Google's servers until the pipeline runs. 
+When that happens, ``geebeam`` will automatically serialize the  graph definition and 
+send it to the workers to start downloading patches, all with one command!
 
 
 Step 2: Run the pipeline
@@ -165,12 +165,15 @@ Step 3: Inspect the output
    ├── validation/
    │   ├── 00008.tif
    │   └── 00009.tif    (2 patches)
-   └── metadata-00000-of-00001.parquet
+   ├── metadata-00000-of-#####.parquet
+   ├── metadata-00001-of-#####.parquet
+   └── ...
 
 Each ``.tif`` is a multi-band GeoTIFF "chip" containing all the bands from your image
-list. The ``metadata`` Parquet file records the sampling location (``x``, ``y``),
+list. The ``metadata`` Parquet files records the sampling location (``x``, ``y``),
 the patch origin (``x_topleft``, ``y_topleft``), the split assignment, and the
-file path for each chip.
+file path for each chip. Each worker writes to its own separate parquet file,
+but it's easy to read them together later (see below).
 
 Open a chip with rasterio to confirm it looks right (you may need to install matplotlib):
 
@@ -203,13 +206,13 @@ You can also read the metadata table:
    import pandas as pd
    import glob
 
-   first_parquet = glob.glob('tutorial_output/metadata-00000*.parquet')[0]
-   df = pd.read_parquet(first_parquet)
+   all_parquets = glob.glob('tutorial_output/metadata-*.parquet')
+   df = pd.concat([pd.read_parquet(p) for p in all_parquets])
    print(df[["id", "x", "y", "x_topleft", "y_topleft", "split", "image_path"]])
 
 
 Step 4. Adding a second image
-----------------------
+-----------------------------
 
 With ``geebeam``, downloading many datasets in a single pipeline is just 
 as easy as downloading one. The bands from every image in ``image_list`` 
