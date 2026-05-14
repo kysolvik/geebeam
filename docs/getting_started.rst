@@ -165,7 +165,9 @@ Step 3: Inspect the output
    ├── validation/
    │   ├── 00008.tif
    │   └── 00009.tif    (2 patches)
-   └── metadata-00000-of-00001.parquet
+   ├── metadata-00000-of-#####.parquet
+   ├── metadata-00001-of-#####.parquet
+   └── ...
 
 Each ``.tif`` is a multi-band GeoTIFF "chip" containing all the bands from your image
 list. The ``metadata`` Parquet file records the sampling location (``x``, ``y``),
@@ -203,8 +205,8 @@ You can also read the metadata table:
    import pandas as pd
    import glob
 
-   first_parquet = glob.glob('tutorial_output/metadata-00000*.parquet')[0]
-   df = pd.read_parquet(first_parquet)
+   all_parquets = glob.glob('tutorial_output/metadata-*.parquet')
+   df = pd.concat([pd.read_parquet(p) for p in all_parquets])
    print(df[["id", "x", "y", "x_topleft", "y_topleft", "split", "image_path"]])
 
 
