@@ -211,7 +211,7 @@ You can also read the metadata table:
 
 
 Step 4. Adding a second image
-----------------------
+-----------------------------
 
 With ``geebeam``, downloading many datasets in a single pipeline is just 
 as easy as downloading one. The bands from every image in ``image_list`` 
