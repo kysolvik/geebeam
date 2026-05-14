@@ -132,7 +132,7 @@ def test_run_pipeline_wraps_single_image(mock_projection, mock_ee_init):
     mock_projection.return_value.atScale.return_value = mock_proj_obj
 
     single_image = MagicMock(spec=ee.Image)
-    with pytest.warns(UserWarning, match='Wrapping single image'):
+    with pytest.warns(UserWarning, match='Wrapping provided single ee.Image'):
         try:
             run_pipeline(
                 image_list=single_image,
