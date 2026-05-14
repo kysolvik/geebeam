@@ -103,9 +103,9 @@ Here we'll build a cloud-free Landsat 8 composite for 2023:
    )
 
 The image is not downloaded yet — this is just an EE graph definition (the "recipe" for 
-  creating the image). Nothing leaves Google's servers until the pipeline runs. 
-  When that happens, ``geebeam`` will automatically serialize the  graph definition and 
-  send it to the workers to start downloading patches, all with one command!
+creating the image). Nothing leaves Google's servers until the pipeline runs. 
+When that happens, ``geebeam`` will automatically serialize the  graph definition and 
+send it to the workers to start downloading patches, all with one command!
 
 
 Step 2: Run the pipeline
