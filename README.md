@@ -1,16 +1,16 @@
-# GeeBeam
+# geebeam
 
 [![Testing + Linting](https://github.com/kysolvik/geebeam/actions/workflows/pytest-lint.yml/badge.svg)](https://github.com/kysolvik/geebeam/actions/workflows/pytest-lint.yml)
 
-Google Earth Engine + Apache Beam for building geospatial training datasets
+Google Earth Engine and Apache Beam for building geospatial training datasets.
 
 ## Purpose:
 
-GeeBeam is a lightweight library for building and executing Apache Beam pipelines that download data "chips" from Google Earth Engine and write them to TensorFlow records for model training.
+geebeam is a lightweight library for building and executing Apache Beam pipelines that download data "chips" from Google Earth Engine and write them to a variety of common data formats (GeoTIFF, WebDataset, TensorFlow Dataset).
 
 The user defines the Earth Engine images they want to download chips from using the Python earthengine-api. geebeam then serialized the graph-definition of the images so they can be passed to the Beam workers.
 
-The pipelines can be run locally or on Google Cloud Dataflow. (Note: currently local jobs are limited to short-running tasks due to grpc "Deadline Exceeded" error).
+The pipelines are automatically parallelized and can be run locally or on Google Cloud Dataflow.
 
 
 ## Install:
@@ -132,5 +132,8 @@ See [DataFlow documentation on specifying network and subnetwork](https://docs.c
 ## Alternatives:
 
 - [GeeFlow](https://github.com/google-deepmind/geeflow): Google DeepMind's GeeFlow fulfills a similar purpose. It is more flexible, allowing for more user control of data processing, reprojection, and writing, but slower and no longer actively maintained. With the goal of meeting *most* users' needs, GeeBeam is designed to be easier and quicker to use, but allows from more limited data transformations.
-- Export training data to Google Cloud Storage then download chips from there: This works, but if you need to get data from many different datasets it's slow to export all that data to Cloud Storage and can be expensive to store it there if you don't delete it quickly. This also uses a lot of Earth Engine compute hours, which are now subject to stricter monthly limits.
-- [Xee](https://github.com/google/Xee): Xee allows for accessing Earth Engine objects as xarray.Datasets. You could use this to define a xarray.Dataset and download "chips" from it, but geebeam interfaces with Beam to automatically parallelize this task and export to Tensorflow records.
+- Export training data to Google Cloud Storage then download chips from there: This works, but if you need to get data from many different datasets it's slow to export all that data to Cloud Storage and can be expensive to store it there if you don't delete it quickly. This also uses unnecessary Earth Engine compute hours, which are now subject to stricter monthly limits.
+- [Xee](https://github.com/google/Xee): Xee is a great package that allows for accessing Earth Engine objects as xarray.Datasets. You could use this to define a xarray.Dataset and download "chips" from it, but geebeam interfaces with Beam to automatically parallelize this task and export to a variety of common data formats (GeoTIFF, WebDataset, TensorFlow Datasets)
+
+## Disclaimer: 
+geebeam is a third-party library and is not affiliated with or endorsed by Google or the Apache Software Foundation.

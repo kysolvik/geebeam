@@ -10,7 +10,7 @@ tool — and everything you need to use ``geebeam`` for your work!
 
    This tutorial runs locally. We'll keep the sample count small (10 patches)
    so everything finishes in under a minute or so. For info on running on
-   DataFlow, see :ref:`scaling-up`.
+   DataFlow, see :doc:`scaling_up`.
 
 What is ``geebeam``?
 --------------------
@@ -62,7 +62,7 @@ step:
 
    earthengine authenticate
 
-This opens a browser window to login and save save credentials locally. You only 
+This opens a browser window to login and save credentials locally. You only
 need to do this once.
 
 You also need to tell Earth Engine which Google Cloud project to use. 
@@ -135,7 +135,7 @@ You will see some Apache Beam log lines scroll by. When it finishes the
 
 **What do ``patch_size`` and ``scale`` mean?**
 Each chip covers ``128 × 30 m = 3.84 km`` on a side. Increasing ``patch_size``
-gives more spatial context. Increasing ``scale`` also gives more spatial_context
+gives more spatial context. Increasing ``scale`` also gives more spatial context
 but at the cost of lower resolution/detail.
 
 **What does ``position`` do?**
@@ -144,10 +144,10 @@ By default each sampling point is the *center* of its patch
 ``"top-right"``, ``"bottom-left"``, or ``"bottom-right"`` if your workflow
 requires the coordinate to refer to a specific corner.
 
-**Why is ``ls8_composite`` wrapped in an list ``[]``?**
-``image_list`` must be a Python list** of ``ee.Image`` objects, even
+**Why is ``ls8_composite`` wrapped in a list ``[]``?**
+``image_list`` must be a Python list of ``ee.Image`` objects, even
 when you only have one image. This is how ``geebeam`` knows how to split
-bands across workers when needed (see `:ref:_split-processing`). If you pass 
+bands across workers when needed (see :doc:`split_processing`). If you pass 
 a single ``ee.Image``, ``geebeam`` will wrap it in a list and keep going
 (with a warning). Currently, ``ee.ImageCollection`` objects are NOT supported.
 
@@ -172,7 +172,7 @@ list. The ``metadata`` Parquet file records the sampling location (``x``, ``y``)
 the patch origin (``x_topleft``, ``y_topleft``), the split assignment, and the
 file path for each chip.
 
-Open a chip with rasterio to confirm it looks right:
+Open a chip with rasterio to confirm it looks right (you may need to install matplotlib):
 
 .. code-block:: python
 
@@ -208,7 +208,7 @@ You can also read the metadata table:
    print(df[["id", "x", "y", "x_topleft", "y_topleft", "split", "image_path"]])
 
 
-Adding a second image
+Step 4. Adding a second image
 ----------------------
 
 With ``geebeam``, downloading many datasets in a single pipeline is just 
@@ -240,99 +240,27 @@ are stacked into the same chip/patch files:
 
 The output TIFFs will now contain 7 bands (6 Landsat + 1 LULC).
 
-.. _split-processing:
-
-Splitting processing to avoid the 50 MB limit
-----------------------------------------------
-
-Each call to Earth Engine's ``computePixels`` API is capped at **50 MB** per
-response. By default ``geebeam`` combines all bands from all images in
-``image_list`` into a single request per patch, so you can hit this limit with
-large patches or many bands.
-
-A rough estimate of response size:
-
-.. code-block:: text
-
-   response_bytes ≈ patch_size × patch_size × n_bands × bytes_per_pixel
-   e.g. 512 × 512 × 48 bands × 4 bytes (float32) ≈ 50 MB
-
-If hit an error saying that you've exceeded the max size, pass 
-``split_processing=True``. This makes ``geebeam`` run **one** ``computePixels``
-request **per** image in ``image_list`` instead of one combined request,
-so each individual call stays under the limit:
-
-.. code-block:: python
-
-   geebeam.sample_and_run_pipeline(
-       image_list=[ls8_composite, mb_lulc],
-       split_processing=True,    # one EE request per image
-       sampling_region=ee.Geometry.Rectangle(-55.0, -12.0, -50.0, -16.0),
-       n_sample=10,
-       patch_size=512,
-       scale=30,
-       crs="EPSG:4326",
-       project=PROJECT_ID,
-       output_path="./tutorial_output_split/",
-   )
-
-The output is identical — bands from all images are still merged into the same
-chip files. The only difference is the number of round-trips to Earth Engine
-per patch: one per image rather than one total. This is slower, so unless you 
-run into errors it's better to leave it at the default (``False``).
-
-
-.. _scaling-up:
-
-Scaling up with Dataflow
--------------------------
-
-The local runner is useful for development and small jobs. For bigger
-workloads (e.g. thousands of patches or large images), you can run on Google Cloud
-Dataflow. Write your ``run_pipeline()`` inside a script and run it with Dataflow
-runner options:
-
-.. code-block:: bash
-
-   python my_pipeline.py \
-       --runner=DataflowRunner \
-       --region=us-east1 \
-       --worker_zone=us-east1-b \
-       --max_num_workers=8 \
-       --temp_location=gs://my-bucket/tmp/ \
-       --sdk_container_image=kysolvik/geebeam:|version| \
-       --machine_type=n2-highmem-2 \
-       --experiments=use_runner_v2
-
-Set ``output_path`` to a ``gs://`` path and ``geebeam`` will write directly to
-Google Cloud Storage. See the
-`Dataflow documentation <https://cloud.google.com/dataflow/docs>`_ for full
-option reference.
-
-.. tip::
-
-   Test your script locally first with ``--runner=DirectRunner`` before
-   submitting to Dataflow. This catches serialisation errors and EE API issues
-   without spending cloud credits.
-
-
 What's next
 ------------
 
-- **Grid sampling** — use :func:`~geebeam.grid_and_run_pipeline` to sample on a
-  regular grid rather than randomly. Useful when you need complete spatial
-  coverage without gaps. You can also overlap by controlling the ``stride`` arg.
-- **Custom sampling points** — use :func:`~geebeam.run_pipeline` directly
-  and pass your own ``sampling_points`` as a Geopandas GeoDataFrame,
-  Pandas DataFrame, or Earth Engine Feature Collection (but they *must* have
-  point geometries). The ':mod:`~geebeam.sampler` submodule also has more options
-  for sampling, including custom dataset splits (e.g. train/val/test).
 - **Other output formats** — pass ``output_type="webdataset"`` to produce a 
   `WebDataset tar <https://github.com/webdataset/webdataset>`_
-  or output_type="tfds"` (requires ``pip install geebeam[tensorflow]``) to 
+  or ``output_type="tfds"`` (requires ``pip install geebeam[tensorflow]``) to
   write as a Tensorflow dataset. See :doc:`output_types` for more info.
+- **Scaling up with DataFlow** — geebeam makes it super easy to run large 
+  pipelines on Google Cloud Dataflow by providing pre-built Docker images.
+  See :doc:`scaling_up` for more.
+- **Custom and gridded sampling** — use :func:`~geebeam.run_pipeline` directly
+  and pass your own ``sampling_points`` as a Geopandas GeoDataFrame,
+  Pandas DataFrame, or Earth Engine Feature Collection (but they *must* have
+  point geometries). Or use :func:`~geebeam.grid_and_run_pipeline` to sample on a
+  regular grid rather than randomly for when you need complete spatial
+  coverage without gaps. See :mod:`~geebeam.sampler`
+  for more info, including custom dataset splits (e.g. train/val/test).
+- **Split processing of large patches** — Earth Engine limits single request sizes 
+  to 50 MB, but geebeam lets you split processing: :doc:`split_processing`
 - **API reference** — full parameter documentation for all three pipeline
-  functions is on the :doc:`autoapi/geebeam/index` page.
+  functions and the sampler module is on the :mod:`~geebeam` page.
 
 
 Get Help / Contribute

@@ -2,7 +2,7 @@ Output Types
 ============
 
 geebeam supports four output formats, selected with the ``output_type``
-argument. The right choice depends on your downstream tooling:
+argument. The right choice depends on your downstream use:
 
 .. list-table::
    :header-rows: 1
@@ -14,19 +14,19 @@ argument. The right choice depends on your downstream tooling:
      - Extra dependencies required?
    * - GeoTIFF
      - ``"tiff"`` *(default)*
-     - GIS tools, rasterio, any language
+     - GIS tools (rasterio, QGIS)
      - No
    * - WebDataset
      - ``"webdataset"``
-     - PyTorch / streaming data pipelines
+     - PyTorch pipelines
      - No
    * - TensorFlow Datasets
      - ``"tfds"``
-     - TensorFlow ``tf.data`` pipelines
+     - TensorFlow pipelines
      - Yes (``geebeam[tensorflow]``)
    * - TFRecord
      - ``"tfrecord"``
-     - Automatic dataset statistics with TFDV
+     - Automatic dataset stats
      - Yes (``geebeam[tensorflow]``)
 
 
@@ -182,7 +182,7 @@ TFRecord
    specifically need to compute dataset statistics with
    `TensorFlow Data Validation <https://www.tensorflow.org/tfx/data_validation/get_started>`_
    (TFDV) — that is the only thing this format provides over ``"tfds"``. 
-   The TFRecord ``output_type`` comes some drawbacks (no standard loading API,
+   The TFRecord ``output_type`` comes with some drawbacks (no standard loading API,
    harder to inspect, needs semi-manual schema coupling).
 
 **Install:**

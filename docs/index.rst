@@ -10,6 +10,8 @@ Contents
 
    getting_started
    output_types
+   scaling_up
+   split_processing
 
 .. note::
 
