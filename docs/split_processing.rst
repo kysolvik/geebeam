@@ -13,7 +13,7 @@ A rough estimate of response size:
    response_bytes ≈ patch_size × patch_size × n_bands × bytes_per_pixel
    e.g. 512 × 512 × 48 bands × 4 bytes (float32) ≈ 50 MB
 
-If hit an error saying that you've exceeded the max size, pass 
+If you hit an error saying that you've exceeded the max size, pass
 ``split_processing=True``. This makes ``geebeam`` run **one** ``computePixels``
 request **per** image in ``image_list`` instead of one combined request,
 so each individual call stays under the limit. If you're already only targeting 

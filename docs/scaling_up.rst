@@ -20,7 +20,7 @@ runner options:
 
 Set ``output_path`` to a ``gs://`` path and ``geebeam`` will write directly to
 Google Cloud Storage. See the
-`Dataflow documentation <https://cloud.google.com/dataflow/docs>`_ for full
+`Dataflow documentation <https://cloud.google.com/dataflow/docs>`_ for full details.
 
 Make sure to replace [version] in the sdk_container_image URI with the geebeam version 
 number installed on your system:

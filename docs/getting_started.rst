@@ -10,7 +10,7 @@ tool — and everything you need to use ``geebeam`` for your work!
 
    This tutorial runs locally. We'll keep the sample count small (10 patches)
    so everything finishes in under a minute or so. For info on running on
-   DataFlow, see :ref:`scaling-up`.
+   DataFlow, see :doc:`scaling_up`.
 
 What is ``geebeam``?
 --------------------
@@ -62,7 +62,7 @@ step:
 
    earthengine authenticate
 
-This opens a browser window to login and save save credentials locally. You only 
+This opens a browser window to login and save credentials locally. You only
 need to do this once.
 
 You also need to tell Earth Engine which Google Cloud project to use. 
@@ -135,7 +135,7 @@ You will see some Apache Beam log lines scroll by. When it finishes the
 
 **What do ``patch_size`` and ``scale`` mean?**
 Each chip covers ``128 × 30 m = 3.84 km`` on a side. Increasing ``patch_size``
-gives more spatial context. Increasing ``scale`` also gives more spatial_context
+gives more spatial context. Increasing ``scale`` also gives more spatial context
 but at the cost of lower resolution/detail.
 
 **What does ``position`` do?**
@@ -144,8 +144,8 @@ By default each sampling point is the *center* of its patch
 ``"top-right"``, ``"bottom-left"``, or ``"bottom-right"`` if your workflow
 requires the coordinate to refer to a specific corner.
 
-**Why is ``ls8_composite`` wrapped in an list ``[]``?**
-``image_list`` must be a Python list** of ``ee.Image`` objects, even
+**Why is ``ls8_composite`` wrapped in a list ``[]``?**
+``image_list`` must be a Python list of ``ee.Image`` objects, even
 when you only have one image. This is how ``geebeam`` knows how to split
 bands across workers when needed (see :doc:`split_processing`). If you pass 
 a single ``ee.Image``, ``geebeam`` will wrap it in a list and keep going
@@ -245,7 +245,7 @@ What's next
 
 - **Other output formats** — pass ``output_type="webdataset"`` to produce a 
   `WebDataset tar <https://github.com/webdataset/webdataset>`_
-  or output_type="tfds"` (requires ``pip install geebeam[tensorflow]``) to 
+  or ``output_type="tfds"`` (requires ``pip install geebeam[tensorflow]``) to
   write as a Tensorflow dataset. See :doc:`output_types` for more info.
 - **Scaling up with DataFlow** — geebeam makes it super easy to run large 
   pipelines on Google Cloud Dataflow by providing pre-built Docker images.
