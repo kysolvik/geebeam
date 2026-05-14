@@ -6,6 +6,7 @@ from unittest.mock import patch, MagicMock
 from geebeam._ee_utils import (
     get_band_names,
     build_prepped_image,
+    _dedupe_band_names,
     list_to_im,
     get_pixels,
     get_pixels_allbands,
@@ -24,26 +25,61 @@ def test_get_band_names():
 @patch('ee.List')
 def test_build_prepped_image(mock_ee_list, mock_ee_ic):
     mock_image1 = MagicMock()
-    mock_image1.bandNames.return_value = ee.List(['b1'])
     mock_image2 = MagicMock()
-    mock_image2.bandNames.return_value = ee.List(['b2'])
-    
-    mock_ee_list.return_value.flatten.return_value = ee.List(['b1', 'b2'])
-    
-    # Mocking ee.ImageCollection(input_list).toBands().rename(band_names_flat)
+
+    mock_ee_list.return_value.getInfo.return_value = [['b1'], ['b2']]
+
     mock_prepped_im = MagicMock()
     mock_ee_ic.return_value.toBands.return_value.rename.return_value = mock_prepped_im
-    
+
     result_im, band_groups, all_bands = build_prepped_image([mock_image1, mock_image2], split_processing=False)
-    
-    print(all_bands)
     assert result_im == mock_prepped_im
-    assert band_groups == [ee.List(['b1', 'b2'])]
-    assert all_bands == ee.List(['b1', 'b2']).getInfo()
-    
+    assert band_groups == [['b1', 'b2']]
+    assert all_bands == ['b1', 'b2']
+
     result_im, band_groups, all_bands = build_prepped_image([mock_image1, mock_image2], split_processing=True)
-    assert band_groups == [ee.List(['b1']), ee.List(['b2'])]
-    assert all_bands == ee.List(['b1', 'b2']).getInfo()
+    assert band_groups == [['b1'], ['b2']]
+    assert all_bands == ['b1', 'b2']
+
+@patch('ee.ImageCollection')
+@patch('ee.List')
+def test_build_prepped_image_deduplicates(mock_ee_list, mock_ee_ic):
+    mock_image1 = MagicMock()
+    mock_image2 = MagicMock()
+
+    mock_ee_list.return_value.getInfo.return_value = [['b1', 'b2'], ['b1', 'b3']]
+
+    mock_prepped_im = MagicMock()
+    mock_ee_ic.return_value.toBands.return_value.rename.return_value = mock_prepped_im
+
+    with pytest.warns(UserWarning, match='Duplicate band names'):
+        result_im, band_groups, all_bands = build_prepped_image(
+            [mock_image1, mock_image2], split_processing=False
+        )
+    assert all_bands == ['b1_0', 'b2', 'b1_1', 'b3']
+    assert band_groups == [['b1_0', 'b2', 'b1_1', 'b3']]
+
+    with pytest.warns(UserWarning, match='Duplicate band names'):
+        result_im, band_groups, all_bands = build_prepped_image(
+            [mock_image1, mock_image2], split_processing=True
+        )
+    assert all_bands == ['b1_0', 'b2', 'b1_1', 'b3']
+    assert band_groups == [['b1_0', 'b2'], ['b1_1', 'b3']]
+
+def test_dedupe_band_names_no_duplicates():
+    result, changed = _dedupe_band_names(['a', 'b', 'c'])
+    assert result == ['a', 'b', 'c']
+    assert changed is False
+
+def test_dedupe_band_names_with_duplicates():
+    result, changed = _dedupe_band_names(['a', 'b', 'a'])
+    assert result == ['a_0', 'b', 'a_1']
+    assert changed is True
+
+def test_dedupe_band_names_multiple_duplicates():
+    result, changed = _dedupe_band_names(['x', 'x', 'x'])
+    assert result == ['x_0', 'x_1', 'x_2']
+    assert changed is True
 
 @patch('geebeam._ee_utils.build_prepped_image')
 def test_list_to_im(mock_build_prepped_image):
