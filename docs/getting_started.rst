@@ -170,9 +170,10 @@ Step 3: Inspect the output
    └── ...
 
 Each ``.tif`` is a multi-band GeoTIFF "chip" containing all the bands from your image
-list. The ``metadata`` Parquet file records the sampling location (``x``, ``y``),
+list. The ``metadata`` Parquet files records the sampling location (``x``, ``y``),
 the patch origin (``x_topleft``, ``y_topleft``), the split assignment, and the
-file path for each chip.
+file path for each chip. Each worker writes to its own separate parquet file,
+but it's easy to read them together later (see below).
 
 Open a chip with rasterio to confirm it looks right (you may need to install matplotlib):
 
