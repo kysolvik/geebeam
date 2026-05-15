@@ -103,31 +103,20 @@ python examples/geebeam_run.py \
 
 Note in this case your `output_path` in run_pipeline() should be a Google Cloud Storage path. Make sure to replace [geebeam-version] in the sdk_container_image URI with the version number installed on your system (```python -c "import geebeam;print(geebeam.__version__)"```). You can also build your own Docker image to run on. More info in the [DataFlow docs](https://docs.cloud.google.com/dataflow/docs/guides/using-custom-containers).
 
-See the Apache Beam and Google Cloud DataFlow docs for full documentation, e.g. pipeline command-line options
+See the [Apache Beam](https://beam.apache.org/documentation/) and [Google Cloud DataFlow](https://docs.cloud.google.com/dataflow/docs/guides/common-errors) docs for full documentation, e.g. pipeline command-line options.
 
 #### Common DataFlow gotchas
 
 1. Before running, you must [enable the DataFlow API on Google Cloud Console](https://console.developers.google.com/apis/api/dataflow.googleapis.com/overview).
 
-2. If you get an error stating "Subnetwork ''... does not have Private Google Access...", you may need to activate it for your subnetwork (replace us-east1 with your region):
-
-```bash
-
-gcloud compute networks subnets update default \
-    --region=us-east1 \
-    --enable-private-ip-google-access
-```
-
-3. You can test your pipeline script (e.g. geebeam_run.py) and Beam options using the DirectRunner before submitting to DataFlow:
+2. You can test your pipeline script (e.g. geebeam_run.py) and Beam options using the DirectRunner before submitting to DataFlow:
 
 ```bash
 python examples/geebeam_run.py \
     --runner=DirectRunner
 ```
 
-See [DataFlow documentation on specifying network and subnetwork](https://docs.cloud.google.com/dataflow/docs/guides/specifying-networks) for DataFlow jobs.
-
-4. For more common errors, see the [Google Cloud DataFlow troubleshooting guide](https://docs.cloud.google.com/dataflow/docs/guides/common-errors).
+3. For more common errors, see the [Google Cloud DataFlow troubleshooting guide](https://docs.cloud.google.com/dataflow/docs/guides/common-errors) and [geebeam's documentation](https://geebeam.readthedocs.io/en/latest/scaling_up.html).
 
 ## Alternatives:
 
