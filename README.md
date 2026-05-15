@@ -103,7 +103,7 @@ python examples/geebeam_run.py \
 
 Note in this case your `output_path` in run_pipeline() should be a Google Cloud Storage path. Make sure to replace [geebeam-version] in the sdk_container_image URI with the version number installed on your system (```python -c "import geebeam;print(geebeam.__version__)"```). You can also build your own Docker image to run on. More info in the [DataFlow docs](https://docs.cloud.google.com/dataflow/docs/guides/using-custom-containers).
 
-See the Apache Beam and Google Cloud DataFlow docs for full documentation, e.g. pipeline command-line options
+See the [Apache Beam](https://beam.apache.org/documentation/) and [Google Cloud DataFlow](https://docs.cloud.google.com/dataflow/docs/guides/common-errors) docs for full documentation, e.g. pipeline command-line options.
 
 #### Common DataFlow gotchas
 
