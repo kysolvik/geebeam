@@ -109,25 +109,14 @@ See the Apache Beam and Google Cloud DataFlow docs for full documentation, e.g. 
 
 1. Before running, you must [enable the DataFlow API on Google Cloud Console](https://console.developers.google.com/apis/api/dataflow.googleapis.com/overview).
 
-2. If you get an error stating "Subnetwork ''... does not have Private Google Access...", you may need to activate it for your subnetwork (replace us-east1 with your region):
-
-```bash
-
-gcloud compute networks subnets update default \
-    --region=us-east1 \
-    --enable-private-ip-google-access
-```
-
-3. You can test your pipeline script (e.g. geebeam_run.py) and Beam options using the DirectRunner before submitting to DataFlow:
+2. You can test your pipeline script (e.g. geebeam_run.py) and Beam options using the DirectRunner before submitting to DataFlow:
 
 ```bash
 python examples/geebeam_run.py \
     --runner=DirectRunner
 ```
 
-See [DataFlow documentation on specifying network and subnetwork](https://docs.cloud.google.com/dataflow/docs/guides/specifying-networks) for DataFlow jobs.
-
-4. For more common errors, see the [Google Cloud DataFlow troubleshooting guide](https://docs.cloud.google.com/dataflow/docs/guides/common-errors).
+3. For more common errors, see the [Google Cloud DataFlow troubleshooting guide](https://docs.cloud.google.com/dataflow/docs/guides/common-errors) and [geebeam's documentation](https://geebeam.readthedocs.io/en/latest/scaling_up.html).
 
 ## Alternatives:
 

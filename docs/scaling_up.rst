@@ -36,16 +36,39 @@ number installed on your system:
    resources and costing $$$.
 
 
-Common DataFlow gotchas
------------------------
+Some DataFlow Gotchas
+---------------------
 
-1. Before running, you must `enable the DataFlow API on Google Cloud Console <https://console.developers.google.com/apis/api/dataflow.googleapis.com/overview>`_.
+1. Before running, you must
+   `enable the DataFlow API on Google Cloud Console <https://console.developers.google.com/apis/api/dataflow.googleapis.com/overview>`_.
 
-2. If you get an error stating "Subnetwork ''... does not have Private Google Access...", you may need to activate it for your subnetwork (replace us-east1 with your region):
+2. If you get an error stating "Constraint constraints/compute.vmExternalIpAccess 
+   violated for project...", your organization may be set up to prevent external IPs
+   for VMs. You can specify the use of private IPs for the 
+   workers by adding the following option to the end of your command:
 
+.. code-block:: bash
+
+   python examples/geebeam_run.py \
+      --runner=DataflowRunner \
+      ...
+      --no_use_public_ips
+
+3. If you get an error stating "Subnetwork ... does not have Private Google Access...", you may 
+   need to activate it for your subnetwork (replace us-east1 with your region, assuming using default subnetwork):
 
 .. code-block:: bash
 
    gcloud compute networks subnets update default \
       --region=us-east1 \
       --enable-private-ip-google-access
+
+4. If you get "Error syncing pod, skipping" with a message about ImagePullBackoff, your 
+   workers may be unable to pull the Docker image. Double check your ``--sdk_container_image``
+   argument. If your organization is set up to prevent VMs from accessing internet,
+   you may have to create a `Google Artifact Registry Remote Repository
+   <https://docs.cloud.google.com/artifact-registry/docs/repositories/create-dockerhub-remote-repository>`_
+   to bring a copy of the image within your VPC.
+
+5. For more common errors, see the `Google Cloud DataFlow troubleshooting guide
+   <https://docs.cloud.google.com/dataflow/docs/guides/common-errors>`_.
