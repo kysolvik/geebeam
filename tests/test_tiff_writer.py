@@ -70,3 +70,20 @@ def test_process_metadata_to_parquet(tmp_path):
     assert 'image_path' in row
     assert 'image_name' in row
     assert row['image_name'] == '00005.tif'
+
+def test_process_metadata_numpy_array_converted_to_list(tmp_path):
+    """Numpy arrays in metadata must become Python lists, not strings, for Parquet compatibility."""
+    output_dir = str(tmp_path)
+    dofn = ProcessMetadataToParquet(output_path=output_dir)
+
+    arr = np.arange(5, dtype=np.float32)
+    element = {
+        'metadata': {'id': 7, 'x': 1.0, 'y': 2.0, 'split': 'train', 'weights': arr},
+        'array': {},
+    }
+
+    results = list(dofn.process(element))
+    assert len(results) == 1
+    row = results[0]
+    assert isinstance(row['weights'], list), "numpy array should be converted to a Python list"
+    assert row['weights'] == [0.0, 1.0, 2.0, 3.0, 4.0]
