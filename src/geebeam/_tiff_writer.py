@@ -93,10 +93,10 @@ class ProcessMetadataToParquet(beam.DoFn):
         parquet_row['image_path'] = tiff_path
         parquet_row['image_name'] = tiff_name
         
-        # Convert all metadata values to string or numeric to ensure Parquet compatibility
+        # Convert numpy values to native Python types for Parquet compatibility
         for key, value in parquet_row.items():
             if hasattr(value, 'tolist'): # Handle numpy arrays if any
-                parquet_row[key] = str(value.tolist())
+                parquet_row[key] = value.tolist()
         
         yield parquet_row
 
