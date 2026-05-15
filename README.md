@@ -23,8 +23,10 @@ pip install geebeam
 
 ### Running locally:
 
-Here we'll create a burned area mask for 2024 using the MCD64A1 product.
-For example, this could be the target variable for a burn risk model.
+Here we'll create a cloud-free Landsat 5 data composite for 2010.
+We'll randomly sample 10 locations and download them as GeoTIFFs.
+This should only ~1 second per tiff, since Earth Engine is doing
+the heavy lifting behind the scenes.
 
 ```python
 import ee
