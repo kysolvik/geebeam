@@ -56,8 +56,8 @@ def run_tfrecord_export(
         stats = (
             train_data
             | 'Batch' >> beam.BatchElements(
-                min_batch_size=10,
-                max_batch_size=100)
+                min_batch_size=2,
+                max_batch_size=25)
             | 'Decode to arrow' >> beam.Map(lambda b: decoder.DecodeBatch(b))
             | 'Generate Statistics' >> tfdv.GenerateStatistics()
         )
