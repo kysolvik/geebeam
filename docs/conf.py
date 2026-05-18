@@ -21,7 +21,7 @@ autoapi_dirs = ['../src/geebeam']
 autoapi_options = ['members', 'show-module-summary']
 
 autodoc_typehints = 'description'
-autoapi_member_order = 'groupwise'
+autoapi_member_order = 'bysource'
 autoapi_add_toctree_entry = True
 autoapi_own_page_level = 'module'
 napoleon_numpy_docstring = False
