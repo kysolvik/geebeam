@@ -37,7 +37,7 @@ tensorflow = [
     "importlib-resources>=6.5.2",
 ]
 all = [
-    "geebeam[tensorflow,test,lint]"
+    "geebeam[tensorflow,test,lint,docs]"
 ]
 
 # Pin upper version of python, since apache-beam only supports to 3.12
