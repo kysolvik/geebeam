@@ -11,7 +11,7 @@ from . import sampler
 from .pipeline import run_pipeline, sample_and_run_pipeline, grid_and_run_pipeline
 
 __all__ = [
-    "pipeline"
+    "pipeline",
     "sampler",
     "run_pipeline",
     "sample_and_run_pipeline",
