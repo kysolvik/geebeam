@@ -1,4 +1,4 @@
-Avoiding the 50 MB per-request limit
+EE's 50 MB per-request limit
 ==============================================
 
 Each call to Earth Engine's ``computePixels`` API is capped at **50 MB** per
