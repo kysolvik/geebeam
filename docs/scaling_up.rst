@@ -3,7 +3,7 @@ Scaling up with Dataflow
 
 The local runner is useful for development and small jobs. For bigger
 workloads (e.g. thousands of patches or large images), you can run on Google Cloud
-Dataflow (note: Dataflow is a billed resource). Write your ``run_pipeline()`` inside a script and run it with Dataflow
+Dataflow (note: Dataflow is a billed resource). Write your ``run_pipeline()`` code to a script and run it with Dataflow
 runner options:
 
 .. code-block:: bash
