@@ -39,5 +39,12 @@ templates_path = ['_templates']
 
 html_theme = 'sphinx_rtd_theme'
 
+html_context = {
+  'display_github': True,
+  'github_user': 'kysolvik',
+  'github_repo': 'geebeam',
+  'github_version': 'main/docs/',
+}
+
 # -- Options for EPUB output
 epub_show_urls = 'footnote'
