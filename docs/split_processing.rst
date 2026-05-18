@@ -1,4 +1,4 @@
-Avoiding the 50 MB per-request limit
+EE's 50 MB per-request limit
 ==============================================
 
 Each call to Earth Engine's ``computePixels`` API is capped at **50 MB** per
@@ -28,7 +28,8 @@ patch of the ls8 composite:
   ee.Initialize(project=PROJECT_ID)
 
   ls8_collection = ee.ImageCollection("LANDSAT/LC08/C02/T1_L2") \
-      .filterDate("2023-01-01", "2023-12-31")
+      .filterDate("2023-01-01", "2023-12-31") \
+      .filter(ee.Filter.lt('CLOUD_COVER', 50))
 
   ls8_composite = ls8_collection.median()
 

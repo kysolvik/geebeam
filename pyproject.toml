@@ -24,6 +24,10 @@ dependencies = [
 test = ["pytest"]
 lint = ["ruff"]
 build = ["hatch"]
+docs = ["sphinx",
+        "sphinx-autoapi",
+        "sphinx-rtd-theme"
+]
 tensorflow = [
     "tensorflow>=2.16",
     "tensorflow-data-validation>=1.16",
@@ -33,7 +37,7 @@ tensorflow = [
     "importlib-resources>=6.5.2",
 ]
 all = [
-    "geebeam[tensorflow,test,lint]"
+    "geebeam[tensorflow,test,lint,docs]"
 ]
 
 # Pin upper version of python, since apache-beam only supports to 3.12

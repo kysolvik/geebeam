@@ -97,6 +97,7 @@ Here we'll build a cloud-free Landsat 8 composite for 2023:
 
    ls8_collection = ee.ImageCollection("LANDSAT/LC08/C02/T1_L2") \
        .filterDate("2023-01-01", "2023-12-31")
+       .filter(ee.Filter.lt('CLOUD_COVER', 50))
 
    ls8_composite = ls8_collection.median().select(
        ["SR_B2", "SR_B3", "SR_B4", "SR_B5", "SR_B6", "SR_B7"]
