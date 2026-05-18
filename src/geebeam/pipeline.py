@@ -107,7 +107,7 @@ def run_pipeline(
     """Run a Beam pipeline to download image chips from Earth Engine.
 
     Args:
-        image_list: A list of image identifiers to process.
+        image_list: A list of ee.Image objects to process.
         sampling_points: Locations to sample from. The position of each point relative
             to the patch is controlled by the ``position`` argument.
         output_path: The path where output will be saved.
@@ -123,6 +123,11 @@ def run_pipeline(
         beam_options_dict: Options for the Beam pipeline. Defaults to an empty dictionary.
         position: Where the sampling point falls within the patch. One of 'center'
             (default), 'top-left', 'top-right', 'bottom-left', 'bottom-right'.
+        dataset_name: For output_type='tfds', name for final tfds output. Used for 
+            loading the dataset into training pipelines. Default is 'geebeam_dataset'.
+        dataset_version: For output_type='tfds', semantic version number for final tfds
+            output. Used for loading the dataset into training pipelines.
+            Default is '1.0.0'.
     """
     import logging
 
@@ -282,36 +287,34 @@ def run_pipeline(
         raise ValueError(f"output_type {output_type} not implemented. Options are ['tfds', 'tfrecord', 'tiff', 'webdataset']")
 
 def sample_and_run_pipeline(
+        image_list: list[ee.Image],
         sampling_region: str | gpd.GeoDataFrame | ee.Geometry,
         n_sample: int,
+        output_path: str,
+        project: str,
+        patch_size: int,
+        scale: float,
+        crs: str = 'EPSG:4326',
         validation_ratio: float = 0,
         random_seed: int = 0,
-        crs: str = 'EPSG:4326',
-        position: str = 'center',
-        *args,
         **kwargs
         ) -> None:
     """Sample random points and then run a Beam pipeline to download image chips from Earth Engine.
 
     Args:
-        image_list: A list of image identifiers to process.
+        image_list: A list of ee.Image objects to process.
         sampling_region: Region to sample from, polygon or group of polygons.
         n_sample: Number of points to sample.
-        validation_ratio: Fraction of points to mark as validation.
-        random_seed: Seed for random sampling
         output_path: The path where output will be saved.
-        output_type: 'tiff' (tiffs with parquet for metadata),
-            'webdataset' (tiffs with jsons, in sharded tars),
-            'tfrecord' (raw tfrecords), or 'tfds' (tensorflow-dataset).
         project: The Google Cloud project ID.
         patch_size: The size of the patches to be processed.
         scale: The scale factor for image processing.
-        crs: The coordinate reference system. Defaults to 'EPSG:4326'.
+        validation_ratio: Fraction of points to mark as validation.
+        random_seed: Seed for random sampling
         split_processing: Flag to indicate if processing should be split. Defaults to False.
-        extra_metadata: Additional metadata to include. Defaults to an empty dictionary.
-        beam_options_dict: Options for the Beam pipeline. Defaults to an empty dictionary.
-        position: Where the sampling point falls within the patch. One of 'center'
-            (default), 'top-left', 'top-right', 'bottom-left', 'bottom-right'.
+        crs: The coordinate reference system for sampling. Defaults to 'EPSG:4326'.
+        **kwargs: Additional keyword arguments are documented in :meth:`pipeline.run_pipeline`.
+
     """
 
     sample_points = sampler.sample_region_random(
@@ -327,43 +330,49 @@ def sample_and_run_pipeline(
             random_seed=random_seed
         )
 
-    return run_pipeline(sampling_points=sample_points, crs=crs, position=position, *args, **kwargs)
+    return run_pipeline(
+        image_list=image_list,
+        sampling_points=sample_points,
+        crs=crs,
+        output_path=output_path,
+        random_seed=random_seed,
+        project=project,
+        patch_size=patch_size,
+        scale=scale,
+        **kwargs)
 
 def grid_and_run_pipeline(
+        image_list: list[ee.Image],
         sampling_region: str | gpd.GeoDataFrame | ee.Geometry,
-        validation_ratio: float,
+        output_path: str,
+        project: str,
+        patch_size: int,
         scale: float,
         stride: int,
-        buffer_distance: float = 0,
         crs: str = 'EPSG:4326',
+        buffer_distance: float = 0,
+        validation_ratio: float = 0,
         random_seed: int = 0,
-        position: str = 'center',
-        *args,
         **kwargs
         ) -> None:
     """Sample points from regular grid and then run a Beam pipeline to download image chips from Earth Engine.
 
     Args:
-        image_list: A list of image identifiers to process.
+        image_list: A list of ee.Image objects to process.
         sampling_region: Region to sample from, polygon or group of polygons.
-        validation_ratio: Fraction of points to mark as validation.
-        stride: Number of pixels between consecutive samples. If want full coverage without overlaps,
-            stride should be equal to patch_size. If less than patch_size, will generate overlaps.
-            If greater, will be gaps between sampled patches.
-        random_seed: Seed for random sampling
         output_path: The path where output will be saved.
-        output_type: 'tiff' (tiffs with parquet for metadata),
-            'webdataset' (tiffs with jsons, in sharded tars),
-            'tfrecord' (raw tfrecords), or 'tfds' (tensorflow-dataset).
         project: The Google Cloud project ID.
         patch_size: The size of the patches to be processed.
         scale: The scale factor for image processing.
-        crs: The coordinate reference system. Defaults to 'EPSG:4326'.
-        split_processing: Flag to indicate if processing should be split. Defaults to False.
-        extra_metadata: Additional metadata to include. Defaults to an empty dictionary.
-        beam_options_dict: Options for the Beam pipeline. Defaults to an empty dictionary.
-        position: Where the sampling point falls within the patch. One of 'center'
-            (default), 'top-left', 'top-right', 'bottom-left', 'bottom-right'.
+        stride: Number of pixels between consecutive samples. If want full coverage without overlaps,
+            stride should be equal to patch_size. If less than patch_size, will generate overlaps.
+            If greater, will be gaps between sampled patches.
+        crs: The coordinate reference system for sampling. Defaults to 'EPSG:4326'.
+        buffer_distance: Distance (in meters) to buffer sampling_region by before gridding.
+            Can be used to ensure complete coverage at edges of sampling_region.
+        validation_ratio: Fraction of points to mark as validation (can be 0.0).
+        random_seed: Seed for random sampling
+        **kwargs: Additional keyword arguments are documented in :meth:`pipeline.run_pipeline`.
     """
 
     sample_points = sampler.sample_region_grid(
@@ -380,4 +389,13 @@ def grid_and_run_pipeline(
             random_seed=random_seed
         )
 
-    return run_pipeline(sampling_points=sample_points, crs=crs, scale=scale, position=position, *args, **kwargs)
+    return run_pipeline(
+        image_list=image_list,
+        sampling_points=sample_points,
+        crs=crs,
+        output_path=output_path,
+        random_seed=random_seed,
+        project=project,
+        patch_size=patch_size,
+        scale=scale,
+        **kwargs)
