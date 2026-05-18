@@ -24,6 +24,10 @@ dependencies = [
 test = ["pytest"]
 lint = ["ruff"]
 build = ["hatch"]
+docs = ["sphinx",
+        "sphinx-autoapi",
+        "sphinx-rtd-theme"
+]
 tensorflow = [
     "tensorflow>=2.16",
     "tensorflow-data-validation>=1.16",
