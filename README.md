@@ -6,7 +6,7 @@ Google Earth Engine and Apache Beam for building geospatial training datasets.
 
 ## Purpose:
 
-geebeam is a lightweight library for building and executing Apache Beam pipelines that download data "chips" from Google Earth Engine and write them to a variety of common data formats (GeoTIFF, WebDataset, TensorFlow Dataset).
+geebeam is a lightweight library for building and executing Apache Beam pipelines that download data "chips" from Google Earth Engine and write them to a variety of common data formats used by PyTorch, TensorFlow, and JAX (GeoTIFF, WebDataset, TensorFlow Dataset).
 
 The user defines the Earth Engine images they want to download chips from using the Python earthengine-api. geebeam then serialized the graph-definition of the images so they can be passed to the Beam workers.
 
