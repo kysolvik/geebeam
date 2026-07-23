@@ -19,7 +19,7 @@ jobs:
       id-token: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Log in to Dockerhub
         uses: docker/login-action@17f7c1809f7467d4244b4ff01b0dbe0b8b9e3d43
