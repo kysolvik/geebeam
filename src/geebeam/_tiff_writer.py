@@ -13,6 +13,8 @@ from rasterio.transform import Affine
 
 from geebeam import _transforms
 
+logger = logging.getLogger(__name__)
+
 
 def _build_tiff_name(id, min_digits=5):
     return f"{str(id).zfill(min_digits)}.tif"
@@ -30,8 +32,8 @@ class WriteTiff(beam.DoFn):
         if not FileSystems.exists(self.output_path):
             try:
                 FileSystems.mkdirs(self.output_path)
-            except Exception as e:
-                logging.warning(f"Error creating directory {self.output_path}: {e}")
+            except OSError as e:
+                logger.warning(f"Output dir already exists {self.output_path}: {e}")
 
     def process(self, element):
         metadata = element['metadata']
