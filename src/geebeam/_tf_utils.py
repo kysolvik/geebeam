@@ -1,10 +1,11 @@
 """Helpers for tensorflow"""
 
-import tensorflow as tf
 import apache_beam as beam
 import numpy as np
+import tensorflow as tf
 
 from geebeam import _transforms
+
 
 def _bytes_feature(value):
     """Returns a bytes_list from a string / byte."""

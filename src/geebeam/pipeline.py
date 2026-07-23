@@ -1,14 +1,15 @@
 """Prepare and run Beam pipeline to download image 'chips' from Earth Engine"""
 
 import warnings
+
 import ee
 import geopandas as gpd
+import numpy as np
 import pandas as pd
 from apache_beam.options.pipeline_options import PipelineOptions
-import numpy as np
 from rasterio import Affine
 
-from geebeam import _ee_utils, sampler, _transforms
+from geebeam import _ee_utils, _transforms, sampler
 
 
 def _check_if_localrunner(pipeline_options):

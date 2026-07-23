@@ -1,16 +1,18 @@
 import io
-import pytest
+from unittest.mock import MagicMock, patch
+
 import numpy as np
-import ee
-from unittest.mock import patch, MagicMock
+import pytest
+
 from geebeam._ee_utils import (
-    get_band_names,
-    build_prepped_image,
     _dedupe_band_names,
-    list_to_im,
+    build_prepped_image,
+    get_band_names,
     get_pixels,
     get_pixels_allbands,
+    list_to_im,
 )
+
 
 def test_get_band_names():
     mock_image1 = MagicMock()

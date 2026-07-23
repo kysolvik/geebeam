@@ -1,19 +1,22 @@
-import pytest
+from unittest.mock import MagicMock, patch
+
+import geopandas as gpd
 import numpy as np
 import pandas as pd
-import geopandas as gpd
-from shapely.geometry import box
+import pytest
 from rasterio.transform import Affine
-from unittest.mock import MagicMock, patch
+from shapely.geometry import box
+
 from geebeam.sampler import (
+    _get_roi,
+    _parse_transform,
+    _process_sampling_points,
+    _snap_to_grid,
+    sample_region_grid,
     sample_region_random,
     split_sets,
-    _process_sampling_points,
-    _get_roi,
-    sample_region_grid,
-    _parse_transform,
-    _snap_to_grid,
 )
+
 
 def test_split_sets():
     df = pd.DataFrame({

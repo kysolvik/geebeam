@@ -1,16 +1,17 @@
 """Beam _transforms and related utilities"""
 
-import logging
-import time
 import json
+import logging
 import os
+import time
 
-import numpy as np
-from apache_beam.io.gcp.gcsio import GcsIO
 import apache_beam as beam
 import ee
+import numpy as np
+from apache_beam.io.gcp.gcsio import GcsIO
 
 from geebeam import _ee_utils
+
 
 def _write_json_to_local(json_string, local_path):
     data = json_string.encode('utf-8')

@@ -1,17 +1,20 @@
-import pytest
-import numpy as np
+from unittest.mock import MagicMock, patch
+
 import ee
+import numpy as np
+import pytest
+from apache_beam.options.pipeline_options import PipelineOptions
 from rasterio.transform import Affine
-from unittest.mock import patch, MagicMock
+
 from geebeam.pipeline import (
-    _prepare_run_metadata,
     _apply_position_offset,
-    _check_if_localrunner,
-    _type_inference,
     _build_md_feature_dict,
+    _check_if_localrunner,
+    _prepare_run_metadata,
+    _type_inference,
     run_pipeline,
 )
-from apache_beam.options.pipeline_options import PipelineOptions
+
 
 @patch('ee.Initialize')
 @patch('ee.Projection')

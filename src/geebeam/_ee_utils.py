@@ -9,6 +9,7 @@ from collections import Counter
 import ee
 import numpy as np
 
+
 def _deserialize(obj_json):
     """Deserialize Earth Engine JSON DAG"""
     return ee.deserializer.fromJSON(obj_json)

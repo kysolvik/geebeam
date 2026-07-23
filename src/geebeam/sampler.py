@@ -1,13 +1,13 @@
 """Helper for sampling locations across regions of interest"""
 
+import json
 import warnings
 
-import json
+import ee
+import geopandas as gpd
 import numpy as np
 import pandas as pd
-import geopandas as gpd
 import shapely
-import ee
 from rasterio import Affine
 
 

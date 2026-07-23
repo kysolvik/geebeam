@@ -2,15 +2,16 @@
 
 import glob
 import os
-import pytest
-import numpy as np
-import apache_beam as beam
-from apache_beam.options.pipeline_options import PipelineOptions
 from unittest.mock import patch
 
+import apache_beam as beam
+import numpy as np
+import pytest
+from apache_beam.options.pipeline_options import PipelineOptions
+
+from geebeam._tfrecord_writer import run_tfrecord_export
 from geebeam._tiff_writer import run_tiff_export
 from geebeam._wds_writer import run_webdataset_export
-from geebeam._tfrecord_writer import run_tfrecord_export
 
 
 class _FakeComputePatch(beam.DoFn):

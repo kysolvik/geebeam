@@ -1,16 +1,18 @@
 """Pipeline for writing image chips as Cloud-Optimized GeoTIFFs and metadata as Parquet."""
 
+import logging
 import os
 import tempfile
-import logging
+
 import apache_beam as beam
-from apache_beam.options.pipeline_options import PipelineOptions
-from apache_beam.io.filesystems import FileSystems
-import rasterio
-from rasterio.transform import Affine
 import pyarrow as pa
+import rasterio
+from apache_beam.io.filesystems import FileSystems
+from apache_beam.options.pipeline_options import PipelineOptions
+from rasterio.transform import Affine
 
 from geebeam import _transforms
+
 
 def _build_tiff_name(id, min_digits=5):
     return f"{str(id).zfill(min_digits)}.tif"

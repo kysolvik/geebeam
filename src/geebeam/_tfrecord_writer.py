@@ -1,10 +1,12 @@
 """Pipeline for writing to raw tfrecords (with statistics and schema sidecar files)"""
 
 import os
+
 import apache_beam as beam
 from apache_beam.options.pipeline_options import PipelineOptions
 
-from geebeam import _transforms, _tf_utils
+from geebeam import _tf_utils, _transforms
+
 
 def run_tfrecord_export(
     input_records: list[dict],
