@@ -65,7 +65,7 @@ def test_type_inference_str():
     assert _type_inference('hello') == 'str'
 
 def test_type_inference_invalid():
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         _type_inference({'key': 'value'})
 
 def test_build_md_feature_dict_basic():
@@ -84,7 +84,7 @@ def test_build_md_feature_dict_with_extra_metadata():
 def test_build_md_feature_dict_invalid_type():
     record = {'id': 1, 'x': 10.0, 'y': 20.0, 'split': 'train'}
     extra_metadata = {'bad': {'nested': 'dict'}}
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         _build_md_feature_dict(record, extra_metadata)
 
 PATCH_SIZE = 10
@@ -167,7 +167,7 @@ def test_run_pipeline_wraps_single_image(mock_projection, mock_ee_init):
 
     single_image = MagicMock(spec=ee.Image)
     with (pytest.warns(UserWarning, match='Wrapping provided single ee.Image'),
-          pytest.raises(ValueError)):
+          pytest.raises(TypeError)):
             run_pipeline(
                 image_list=single_image,
                 output_path='/tmp/test',
@@ -180,7 +180,7 @@ def test_run_pipeline_wraps_single_image(mock_projection, mock_ee_init):
 def test_run_pipeline_transform_warns_scale_ignored():
     """Passing align_transform should warn that `scale` is ignored."""
     with (pytest.warns(UserWarning, match='`scale` argument is ignored'),
-          pytest.raises(ValueError)):
+          pytest.raises(TypeError)):
                 run_pipeline(
                     image_list=[MagicMock()],
                     output_path='/tmp/test',
@@ -203,8 +203,8 @@ def test_run_pipeline_requires_scale_or_align():
         )
 
 def test_run_pipeline_rejects_image_collection():
-    """An ee.ImageCollection passed as image_list should raise ValueError."""
-    with pytest.raises(ValueError, match='ee.ImageCollection'):
+    """An ee.ImageCollection passed as image_list should raise TypeError."""
+    with pytest.raises(TypeError, match='ee.ImageCollection'):
         run_pipeline(
             image_list=MagicMock(spec=ee.ImageCollection),
             output_path='/tmp/test',
@@ -215,7 +215,7 @@ def test_run_pipeline_rejects_image_collection():
         )
 
 def test_run_pipeline_invalid_output_type():
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         run_pipeline(
             image_list=[MagicMock()],
             output_path='/tmp/test',

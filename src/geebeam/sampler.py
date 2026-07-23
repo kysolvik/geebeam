@@ -60,8 +60,8 @@ def _get_roi(
         elif isinstance(sampling_region, shapely.Geometry):
             roi_df = gpd.GeoDataFrame(geometry=[sampling_region], crs=target_crs)
         else:
-            raise ValueError("'sampling_region' must be one of"
-                                "[str, ee.Geometry, gpd.GeoDataFrame]")
+            raise TypeError("'sampling_region' must be one of"
+                            "[str, ee.Geometry, gpd.GeoDataFrame]")
         source_crs = roi_df.crs.to_string()
         if source_crs != target_crs:
             warnings.warn(f'Converting ROI from crs {source_crs} to target_crs: {target_crs}')
@@ -98,8 +98,8 @@ def _process_sampling_points(
                 }
             ).set_crs(fc_crs)
     else:
-        raise ValueError("'sampling_points' must be one of"
-                         "[pd.DataFrame, gpd.GeoDataFrame, ee.FeatureCollection]")
+        raise TypeError("'sampling_points' must be one of"
+                        "[pd.DataFrame, gpd.GeoDataFrame, ee.FeatureCollection]")
 
     if 'id' not in points_gdf.columns:
         points_gdf['id'] = np.arange(points_gdf.shape[0])

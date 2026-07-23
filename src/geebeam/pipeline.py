@@ -15,22 +15,19 @@ from geebeam import _ee_utils, _transforms, sampler
 def _check_if_localrunner(pipeline_options):
     """Fixes gRPC timeout issue for local runners."""
     runner = pipeline_options.get_all_options()['runner']
-    if runner is None or runner in ['DirectRunner', 'PrismRunner']:
-        return True
-    else:
-        return False
+    return runner is None or runner in ['DirectRunner', 'PrismRunner']
 
 def _type_inference(val):
     if isinstance(val, int):
         return 'int'
     elif isinstance(val, float):
         return 'float'
-    elif isinstance(val, list) or isinstance(val, np.ndarray):
+    elif isinstance(val, (list, np.ndarray)):
         return {'arraylike': np.array(val).shape}
     elif isinstance(val, str):
         return 'str'
     else:
-        raise ValueError
+        raise TypeError
 
 def _build_md_feature_dict(record, extra_metadata):
     md_feature_dict = {
@@ -40,7 +37,7 @@ def _build_md_feature_dict(record, extra_metadata):
         'split':'str'
     }
     if extra_metadata is not None:
-        for key in extra_metadata.keys():
+        for key in extra_metadata:
             # Basic type inference for extra metadata
             try:
                 md_type = _type_inference(extra_metadata[key])
@@ -48,7 +45,7 @@ def _build_md_feature_dict(record, extra_metadata):
                 raise ValueError(f'Could not determine data type of extra_metadata feature {key}')
             md_feature_dict[key] = md_type
 
-    for key in record.keys():
+    for key in record:
         if key not in ['id','x','y','split']:
             try:
                 md_type = _type_inference(record[key])
@@ -118,7 +115,7 @@ def run_pipeline(
         align_transform: Affine | tuple[float] | list[float] | None = None,
         output_type: str = 'tiff',
         split_processing: bool = False,
-        extra_metadata: dict = {},
+        extra_metadata: dict | None = None,
         beam_options: dict[str] | list[str] | None = None,
         dataset_version: str = '1.0.0',
         dataset_name: str = 'geebeam_dataset',
@@ -159,10 +156,10 @@ def run_pipeline(
     """
     import logging
 
-    logging.getLogger().setLevel(logging.INFO)
+    logger = logging.getLogger(__name__).setLevel(logging.INFO)
 
     if isinstance(image_list, ee.ImageCollection):
-        raise ValueError(
+        raise TypeError(
             'image_list must be a list of ee.Image objects, not an ee.ImageCollection. '
             'Convert first with image_list = [collection.mosaic()] or similar.'
         )
@@ -187,6 +184,9 @@ def run_pipeline(
             UserWarning,
             stacklevel=2
         )
+
+    if not extra_metadata:
+        extra_metadata = {}
 
     # Set up configuration dict to pass along
     config = {
@@ -233,8 +233,8 @@ def run_pipeline(
     # Check if a local runner. If so, add longer job timeout to fix grpcio timeout issue
     is_local = _check_if_localrunner(pipeline_options)
     if is_local:
-        logging.warning('Running on local runner. Setting beam job_server_timeout'
-                        ' to 9999999 seconds to avoid grpcio timeout errors.')
+        logger.warning('Running on local runner. Setting beam job_server_timeout'
+                       ' to 9999999 seconds to avoid grpcio timeout errors.')
         pipeline_options_dict = pipeline_options.get_all_options(drop_default=True)
         pipeline_options_dict['job_server_timeout'] = 9999999
         pipeline_options = PipelineOptions.from_dictionary(pipeline_options_dict)

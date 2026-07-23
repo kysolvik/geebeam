@@ -71,7 +71,7 @@ def test_process_sampling_points_dataframe_missing_xy():
         _process_sampling_points(df, 'EPSG:4326')
 
 def test_process_sampling_points_invalid_type():
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         _process_sampling_points({'x': 10, 'y': 20}, 'EPSG:4326')
 
 def test_process_sampling_points_adds_id_and_split():
@@ -108,7 +108,7 @@ def test_get_roi_string():
         mock_read_file.assert_called_once_with('/fake/path/file.gpkg')
 
 def test_get_roi_invalid():
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         _get_roi(12345, 'EPSG:4326')
 
 def test_sample_region_grid():
