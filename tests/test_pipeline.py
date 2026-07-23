@@ -166,8 +166,8 @@ def test_run_pipeline_wraps_single_image(mock_projection, mock_ee_init):
     mock_projection.return_value.atScale.return_value = mock_proj_obj
 
     single_image = MagicMock(spec=ee.Image)
-    with pytest.warns(UserWarning, match='Wrapping provided single ee.Image'):
-        try:
+    with (pytest.warns(UserWarning, match='Wrapping provided single ee.Image'),
+          pytest.raises(ValueError)):
             run_pipeline(
                 image_list=single_image,
                 output_path='/tmp/test',
@@ -176,24 +176,20 @@ def test_run_pipeline_wraps_single_image(mock_projection, mock_ee_init):
                 scale=30.0,
                 sampling_points=MagicMock(),
             )
-        except Exception:
-            pass  # pipeline will fail further on; we only care the warning fired
 
 def test_run_pipeline_transform_warns_scale_ignored():
     """Passing align_transform should warn that `scale` is ignored."""
-    with pytest.warns(UserWarning, match='`scale` argument is ignored'):
-        try:
-            run_pipeline(
-                image_list=[MagicMock()],
-                output_path='/tmp/test',
-                project='test-project',
-                patch_size=4,
-                scale=30.0,
-                sampling_points=MagicMock(),
-                align_transform=Affine(0.001, 0, 0, 0, -0.001, 0),
-            )
-        except Exception:
-            pass  # pipeline will fail further on; we only care the warning fired
+    with (pytest.warns(UserWarning, match='`scale` argument is ignored'),
+          pytest.raises(ValueError)):
+                run_pipeline(
+                    image_list=[MagicMock()],
+                    output_path='/tmp/test',
+                    project='test-project',
+                    patch_size=4,
+                    scale=30.0,
+                    sampling_points=MagicMock(),
+                    align_transform=Affine(0.001, 0, 0, 0, -0.001, 0),
+                )
 
 def test_run_pipeline_requires_scale_or_align():
     """Neither scale nor align_transform provided should raise."""

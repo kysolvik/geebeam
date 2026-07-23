@@ -50,7 +50,7 @@ def test_process_sampling_points_geodataframe():
 
 def test_process_sampling_points_dataframe():
     df = pd.DataFrame({'x': [10.0, 20.0], 'y': [50.0, 60.0]})
-    records, splits = _process_sampling_points(df, 'EPSG:4326')
+    records, _splits = _process_sampling_points(df, 'EPSG:4326')
     assert len(records) == 2
     assert records[0]['x'] == 10.0
     assert records[0]['y'] == 50.0

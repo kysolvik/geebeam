@@ -39,7 +39,7 @@ def test_build_prepped_image(mock_ee_list, mock_ee_ic):
     assert band_groups == [['b1', 'b2']]
     assert all_bands == ['b1', 'b2']
 
-    result_im, band_groups, all_bands = build_prepped_image([mock_image1, mock_image2], split_processing=True)
+    _result_im, band_groups, all_bands = build_prepped_image([mock_image1, mock_image2], split_processing=True)
     assert band_groups == [['b1'], ['b2']]
     assert all_bands == ['b1', 'b2']
 
@@ -55,14 +55,14 @@ def test_build_prepped_image_deduplicates(mock_ee_list, mock_ee_ic):
     mock_ee_ic.return_value.toBands.return_value.rename.return_value = mock_prepped_im
 
     with pytest.warns(UserWarning, match='Duplicate band names'):
-        result_im, band_groups, all_bands = build_prepped_image(
+        _result_im, band_groups, all_bands = build_prepped_image(
             [mock_image1, mock_image2], split_processing=False
         )
     assert all_bands == ['b1_0', 'b2', 'b1_1', 'b3']
     assert band_groups == [['b1_0', 'b2', 'b1_1', 'b3']]
 
     with pytest.warns(UserWarning, match='Duplicate band names'):
-        result_im, band_groups, all_bands = build_prepped_image(
+        _result_im, band_groups, all_bands = build_prepped_image(
             [mock_image1, mock_image2], split_processing=True
         )
     assert all_bands == ['b1_0', 'b2', 'b1_1', 'b3']
