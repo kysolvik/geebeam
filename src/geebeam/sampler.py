@@ -8,6 +8,7 @@ import pandas as pd
 import geopandas as gpd
 import shapely
 import ee
+from rasterio import Affine
 
 
 def _get_crs_scale(
@@ -17,6 +18,30 @@ def _get_crs_scale(
     """Find equivalent scale in m for crs"""
     transform = ee.Projection(crs=crs).atScale(scale_m).getInfo()['transform']
     return transform[0]
+
+def _parse_transform(transform):
+    """Return (x0, y0, scale_x, scale_y) from a rasterio Affine or 6-tuple.
+
+    The transform is given in Affine order (a, b, c, d, e, f) =
+    (scale_x, shear_x, translate_x, shear_y, scale_y, translate_y). scale_x/scale_y
+    are returned as positive pixel-size magnitudes, matching the existing pipeline
+    convention (scale_y = -transform[4]). Rotation/shear is not supported.
+    """
+    a, b, c, d, e, f = tuple(transform)[:6]
+    if b != 0 or d != 0:
+        raise ValueError('transform must have zero shear/rotation (b and d must be 0).')
+    return c, f, abs(a), abs(e)
+
+def _snap_to_grid(x, y, x0, y0, scale_x, scale_y):
+    """Snap coordinate(s) to the nearest node of the reference grid.
+
+    Works for both scalar and array inputs. Returns Python floats for scalar input.
+    """
+    xs = x0 + np.round((np.asarray(x, dtype=float) - x0) / scale_x) * scale_x
+    ys = y0 + np.round((np.asarray(y, dtype=float) - y0) / scale_y) * scale_y
+    if np.ndim(x) == 0:
+        return float(xs), float(ys)
+    return xs, ys
 
 def _get_roi(
     sampling_region: str | ee.Geometry | gpd.GeoDataFrame,
@@ -94,9 +119,16 @@ def sample_region_random(
         crs: str,
         n_sample: int,
         random_seed: int = 0,
-        buffer_distance: float = 0
+        buffer_distance: float = 0,
+        transform: Affine | tuple[float] | list[float] | None = None,
         ) -> gpd.GeoDataFrame:
-    """Get random points within region of interest."""
+    """Get random points within region of interest.
+
+    If transform (a rasterio Affine or list/tuple length 6 in the target crs) is provided,
+    the sampled points are snapped onto that transform's pixel grid. Note that snapping to a grid
+    that is coarse relative to the sampling density can collapse distinct random points
+    onto the same location; a warning is emitted if this happens.
+    """
     rng = np.random.default_rng(random_seed)
     roi = _get_roi(roi, crs)
     if buffer_distance != 0:
@@ -105,6 +137,22 @@ def sample_region_random(
 
     sampled_points = gpd.GeoDataFrame(geometry=roi.sample_points(n_sample, rng=rng).geometry.explode(),
                                       crs=crs)
+    if transform is not None:
+        x0, y0, sx, sy = _parse_transform(transform)
+        xs, ys = _snap_to_grid(sampled_points.geometry.x.values,
+                               sampled_points.geometry.y.values, x0, y0, sx, sy)
+        n_unique = np.unique(np.column_stack([xs, ys]), axis=0).shape[0]
+        n_collisions = len(xs) - n_unique
+        if n_collisions > 0:
+            warnings.warn(
+                f'transform snapped {n_collisions} of {len(xs)} random point(s) onto '
+                'locations already occupied by another point (duplicate locations). The '
+                'alignment grid is coarse relative to the sampling density; use a finer '
+                'transform or fewer points to avoid duplicates.',
+                UserWarning,
+                stacklevel=2
+            )
+        sampled_points = gpd.GeoDataFrame(geometry=gpd.points_from_xy(xs, ys), crs=crs)
     sampled_points.index = np.arange(sampled_points.shape[0])
     return sampled_points
 
@@ -112,18 +160,40 @@ def sample_region_grid(
         roi: gpd.GeoDataFrame,
         crs: str,
         stride: int,
-        scale: float,
+        scale: float | None = None,
+        transform: Affine | tuple[float] | list[float] | None = None,
         buffer_distance: float = 0,
         ) -> gpd.GeoDataFrame:
-    """Get a regular grid of points covering region of interest"""
+    """Get a regular grid of points covering region of interest.
+
+    ``scale`` (grid spacing in meters, as scale*stride) is required unless transform
+    is provided. If transform (a rasterio Affine or 6-tuple in the target crs) is
+    provided, the grid uses that transform's pixel size (``scale`` is ignored) and its origin
+    is anchored to the transform, so every location falls on that transform's pixel grid.
+    """
+    if transform is None and scale is None:
+        raise ValueError('`scale` is required unless transform is provided.')
     roi = _get_roi(roi, crs)
-    scale_proj = _get_crs_scale(roi.crs.to_string(), scale)
-    if buffer_distance != 0:
-        scale_proj_1m = scale_proj/scale
-        roi = roi.dissolve().buffer(scale_proj_1m*buffer_distance)
-    xmin, ymin, xmax, ymax = roi.total_bounds
-    x_locs = np.arange(xmin, xmax+scale_proj*stride, scale_proj*stride)
-    y_locs = np.arange(ymin, ymax+scale_proj*stride, scale_proj*stride)
+    if transform is not None:
+        x0, y0, sx, sy = _parse_transform(transform)
+        if buffer_distance != 0:
+            scale_proj_1m = _get_crs_scale(roi.crs.to_string(), 1)
+            roi = roi.dissolve().buffer(scale_proj_1m*buffer_distance)
+        xmin, ymin, xmax, ymax = roi.total_bounds
+        step_x, step_y = sx*stride, sy*stride
+        # Anchor the grid to the reference transform (nodes = origin + whole pixels)
+        x_start = x0 + np.floor((xmin - x0)/sx)*sx
+        y_start = y0 + np.floor((ymin - y0)/sy)*sy
+        x_locs = np.arange(x_start, xmax+step_x, step_x)
+        y_locs = np.arange(y_start, ymax+step_y, step_y)
+    else:
+        scale_proj = _get_crs_scale(roi.crs.to_string(), scale)
+        if buffer_distance != 0:
+            scale_proj_1m = scale_proj/scale
+            roi = roi.dissolve().buffer(scale_proj_1m*buffer_distance)
+        xmin, ymin, xmax, ymax = roi.total_bounds
+        x_locs = np.arange(xmin, xmax+scale_proj*stride, scale_proj*stride)
+        y_locs = np.arange(ymin, ymax+scale_proj*stride, scale_proj*stride)
     meshgrid = np.array(np.meshgrid(x_locs, y_locs)).T.reshape(-1, 2)
     x_all, y_all = meshgrid[:,0],  meshgrid[:,1]
 

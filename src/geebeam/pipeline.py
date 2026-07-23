@@ -6,6 +6,7 @@ import geopandas as gpd
 import pandas as pd
 from apache_beam.options.pipeline_options import PipelineOptions
 import numpy as np
+from rasterio import Affine
 
 from geebeam import _ee_utils, sampler, _transforms
 
@@ -55,8 +56,13 @@ def _build_md_feature_dict(record, extra_metadata):
             md_feature_dict[key] = md_type
     return md_feature_dict
 
-def _prepare_run_metadata(config):
+def _prepare_run_metadata(config, transform=None):
     ee.Initialize(project=config['project_id'])
+
+    if transform is not None:
+        # Pixel size comes from the alignment transform (overrides config['scale'])
+        _, _, scale_x, scale_y = sampler._parse_transform(transform)
+        return scale_x, scale_y
 
     proj = ee.Projection(config['crs']).atScale(config['scale'])
     proj_dict = proj.getInfo()
@@ -67,8 +73,14 @@ def _prepare_run_metadata(config):
     return scale_x, scale_y
 
 
-def _apply_position_offset(input_records, position, patch_size, scale_x, scale_y):
-    """Add x_topleft/y_topleft to each record; original x/y (the sampling location) is preserved."""
+def _apply_position_offset(input_records, position, patch_size, scale_x, scale_y,
+                           transform=None):
+    """Add x_topleft/y_topleft to each record; original x/y is preserved.
+
+    If transform (a rasterio Affine or array-like with length 6 in the
+    target crs) is provided, each patch's top-left corner is snapped onto that
+    transform's pixel grid so the extracted patch aligns exactly.
+    """
     _valid_positions = {'center', 'top-left', 'top-right', 'bottom-left', 'bottom-right'}
     if position == 'top-left':
         dx, dy = 0, 0
@@ -86,23 +98,30 @@ def _apply_position_offset(input_records, position, patch_size, scale_x, scale_y
         dy = -patch_size * scale_y
     else:
         raise ValueError(f"Invalid position '{position}'. Must be one of: {sorted(_valid_positions)}")
-    return [{**r, 'x_topleft': r['x'] + dx, 'y_topleft': r['y'] + dy} for r in input_records]
+    records = [{**r, 'x_topleft': r['x'] + dx, 'y_topleft': r['y'] + dy} for r in input_records]
+    if transform is not None:
+        x0, y0, sx, sy = sampler._parse_transform(transform)
+        for r in records:
+            r['x_topleft'], r['y_topleft'] = sampler._snap_to_grid(
+                r['x_topleft'], r['y_topleft'], x0, y0, sx, sy)
+    return records
 
 def run_pipeline(
         image_list: list[ee.Image],
+        sampling_points: pd.DataFrame | gpd.GeoDataFrame | ee.FeatureCollection,
         output_path: str,
         project: str,
         patch_size: int,
-        scale: float,
-        sampling_points: pd.DataFrame | gpd.GeoDataFrame | ee.FeatureCollection,
-        output_type: str = 'tiff',
+        scale: float | None = None,
         crs: str = 'EPSG:4326',
+        transform: Affine | tuple[float] | list[float] | None = None,
+        output_type: str = 'tiff',
         split_processing: bool = False,
         extra_metadata: dict = {},
         beam_options: dict[str] | list[str] | None = None,
         dataset_version: str = '1.0.0',
         dataset_name: str = 'geebeam_dataset',
-        position: str = 'center'
+        position: str = 'center',
         ) -> None:
     """Run a Beam pipeline to download image chips from Earth Engine.
 
@@ -111,13 +130,21 @@ def run_pipeline(
         sampling_points: Locations to sample from. The position of each point relative
             to the patch is controlled by the ``position`` argument.
         output_path: The path where output will be saved.
+        project: The Google Cloud project ID.
+        patch_size: The size of the patches to be processed.
+        scale: Export resolution in meters. Required unless ``transform`` is provided
+            (in which case pixel size comes from the transform and ``scale`` is ignored).
+        crs: The coordinate reference system. Defaults to 'EPSG:4326'.
+        transform: Optional full geospatial transform (a rasterio ``Affine`` or a
+            list/tuple (length 6) ``(a, b, c, d, e, f)`` in ``crs`` units) to align patches
+            to. When provided, the pixel size is taken from the transform and ``scale`` is
+            ignored (a warning is emitted), and each patch's top-left corner is snapped onto
+            the transform's pixel grid, so the extracted patch aligns exactly to that grid 
+            with no resampling. Rotation/shear (non-zero ``b``/``d``) is not supported.
+            Defaults to None.
         output_type: 'tiff' (tiffs with parquet for metadata),
             'webdataset' (tiffs with jsons, in sharded tars),
             'tfrecord' (raw tfrecords), or 'tfds' (tensorflow-dataset).
-        project: The Google Cloud project ID.
-        patch_size: The size of the patches to be processed.
-        scale: The scale factor for image processing.
-        crs: The coordinate reference system. Defaults to 'EPSG:4326'.
         split_processing: Flag to indicate if processing should be split. Defaults to False.
         extra_metadata: Additional metadata to include. Defaults to an empty dictionary.
         beam_options_dict: Options for the Beam pipeline. Defaults to an empty dictionary.
@@ -146,6 +173,19 @@ def run_pipeline(
             stacklevel=2
         )
         image_list = [image_list]
+
+    if scale is None and transform is None:
+        raise ValueError(
+            'Provide `scale` (export resolution in meters) or `transform`; '
+            'pixel size is derived from one of them.'
+        )
+    if transform is not None and scale is not None:
+        warnings.warn(
+            'Both transform and scale are set; the `scale` argument is ignored. '
+            'Pixel size is taken from the transform (in crs units) instead.',
+            UserWarning,
+            stacklevel=2
+        )
 
     # Set up configuration dict to pass along
     config = {
@@ -180,10 +220,11 @@ def run_pipeline(
     input_records, splits = sampler._process_sampling_points(sampling_points, target_crs=config['crs'])
 
     # Pre-run info:
-    scale_x, scale_y = _prepare_run_metadata(config)
+    scale_x, scale_y = _prepare_run_metadata(config, transform)
 
     # Offset sampling location (x, y) -> (x_topleft, y_topleft) based on position arg
-    input_records = _apply_position_offset(input_records, position, patch_size, scale_x, scale_y)
+    input_records = _apply_position_offset(input_records, position, patch_size, scale_x, scale_y,
+                                           transform=transform)
 
     # Get types of extra non-image data in extra_metadata or input_records
     md_feature_dict = _build_md_feature_dict(input_records[0], extra_metadata)
@@ -293,10 +334,11 @@ def sample_and_run_pipeline(
         output_path: str,
         project: str,
         patch_size: int,
-        scale: float,
+        scale: float | None = None,
         crs: str = 'EPSG:4326',
         validation_ratio: float = 0,
         random_seed: int = 0,
+        transform: Affine | tuple[float] | list[float] | None = None,
         **kwargs
         ) -> None:
     """Sample random points and then run a Beam pipeline to download image chips from Earth Engine.
@@ -308,11 +350,13 @@ def sample_and_run_pipeline(
         output_path: The path where output will be saved.
         project: The Google Cloud project ID.
         patch_size: The size of the patches to be processed.
-        scale: The scale factor for image processing.
+        scale: Export resolution in meters. Required unless ``transform`` is provided.
         validation_ratio: Fraction of points to mark as validation.
         random_seed: Seed for random sampling
         split_processing: Flag to indicate if processing should be split. Defaults to False.
         crs: The coordinate reference system for sampling. Defaults to 'EPSG:4326'.
+        transform: Optional full geospatial transform (rasterio ``Affine`` or list-like length 6
+            ``crs`` units) to align samples to. See :meth:`pipeline.run_pipeline`. Defaults to None.
         **kwargs: Additional keyword arguments are documented in :meth:`pipeline.run_pipeline`.
 
     """
@@ -322,6 +366,7 @@ def sample_and_run_pipeline(
         n_sample=n_sample,
         random_seed=random_seed,
         crs=crs,
+        transform=transform,
     )
 
     if validation_ratio > 0:
@@ -338,6 +383,7 @@ def sample_and_run_pipeline(
         project=project,
         patch_size=patch_size,
         scale=scale,
+        transform=transform,
         **kwargs)
 
 def grid_and_run_pipeline(
@@ -346,8 +392,9 @@ def grid_and_run_pipeline(
         output_path: str,
         project: str,
         patch_size: int,
-        scale: float,
         stride: int,
+        scale: float | None = None,
+        transform: Affine | tuple[float] | list[float] | None = None,
         crs: str = 'EPSG:4326',
         buffer_distance: float = 0,
         validation_ratio: float = 0,
@@ -362,10 +409,14 @@ def grid_and_run_pipeline(
         output_path: The path where output will be saved.
         project: The Google Cloud project ID.
         patch_size: The size of the patches to be processed.
-        scale: The scale factor for image processing.
-        stride: Number of pixels between consecutive samples. If want full coverage without overlaps,
-            stride should be equal to patch_size. If less than patch_size, will generate overlaps.
-            If greater, will be gaps between sampled patches.
+        stride: Number of pixels between consecutive samples. If want full coverage without
+            overlaps, stride should be equal to patch_size. If less than patch_size, will
+            generate overlaps. If greater, will be gaps between sampled patches.
+        scale: Export resolution in meters. Required unless ``transform`` is provided.
+        transform: Optional full geospatial transform (rasterio ``Affine`` or list-like
+            (length 6) in ``crs`` units) to align samples to. When provided, the grid uses
+            the transform's pixel size and origin. See :meth:`pipeline.run_pipeline`.
+            Defaults to None.
         crs: The coordinate reference system for sampling. Defaults to 'EPSG:4326'.
         buffer_distance: Distance (in meters) to buffer sampling_region by before gridding.
             Can be used to ensure complete coverage at edges of sampling_region.
@@ -376,10 +427,11 @@ def grid_and_run_pipeline(
 
     sample_points = sampler.sample_region_grid(
         roi=sampling_region,
-        crs='EPSG:4326',
+        crs=crs,
         stride=stride,
         scale=scale,
         buffer_distance=buffer_distance,
+        transform=transform,
     )
 
     if validation_ratio > 0:
@@ -396,4 +448,5 @@ def grid_and_run_pipeline(
         project=project,
         patch_size=patch_size,
         scale=scale,
+        transform=transform,
         **kwargs)

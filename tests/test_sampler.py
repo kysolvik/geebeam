@@ -1,7 +1,9 @@
 import pytest
+import numpy as np
 import pandas as pd
 import geopandas as gpd
 from shapely.geometry import box
+from rasterio.transform import Affine
 from unittest.mock import MagicMock, patch
 from geebeam.sampler import (
     sample_region_random,
@@ -9,6 +11,8 @@ from geebeam.sampler import (
     _process_sampling_points,
     _get_roi,
     sample_region_grid,
+    _parse_transform,
+    _snap_to_grid,
 )
 
 def test_split_sets():
@@ -151,3 +155,86 @@ def test_split_sets_empty_split_names():
     df = pd.DataFrame({'x': range(5), 'y': range(5)})
     result = split_sets(df, split_names=[])
     assert (result['split'] == 'full').all()
+
+def test_parse_transform_affine_and_tuple_match():
+    affine = Affine(30.0, 0, 500000.0, 0, -30.0, 4500000.0)
+    tup = (30.0, 0, 500000.0, 0, -30.0, 4500000.0)
+    assert _parse_transform(affine) == _parse_transform(tup)
+    x0, y0, sx, sy = _parse_transform(affine)
+    assert (x0, y0) == (500000.0, 4500000.0)
+    # scale_x/scale_y are positive magnitudes (matches scale_y = -transform[4] convention)
+    assert (sx, sy) == (30.0, 30.0)
+
+def test_parse_transform_rejects_shear():
+    with pytest.raises(ValueError, match='shear'):
+        _parse_transform((30.0, 0.1, 0.0, 0.0, -30.0, 0.0))
+    with pytest.raises(ValueError, match='shear'):
+        _parse_transform((30.0, 0.0, 0.0, 0.2, -30.0, 0.0))
+
+def test_snap_to_grid_scalar():
+    # origin (0, 0), pixel size 5 -> nearest multiple of 5
+    x, y = _snap_to_grid(12.3, 63.9, 0.0, 0.0, 5.0, 5.0)
+    assert x == 10.0
+    assert y == 65.0
+    assert isinstance(x, float) and isinstance(y, float)
+
+def test_snap_to_grid_array_and_offset_origin():
+    xs = np.array([12.3, 27.6])
+    ys = np.array([51.1, 63.9])
+    xs_snap, ys_snap = _snap_to_grid(xs, ys, 1.0, 1.0, 5.0, 5.0)
+    # nodes must satisfy (v - origin) / pixel == integer
+    assert np.allclose((xs_snap - 1.0) / 5.0, np.round((xs_snap - 1.0) / 5.0))
+    assert np.allclose((ys_snap - 1.0) / 5.0, np.round((ys_snap - 1.0) / 5.0))
+
+def test_sample_region_grid_transform():
+    roi_gdf = gpd.GeoDataFrame(geometry=[box(0.0, 0.0, 1.0, 1.0)], crs='EPSG:4326')
+    # origin (0.05, 0.05), pixel size 0.1; align mode should NOT call _get_crs_scale
+    align = Affine(0.1, 0, 0.05, 0, -0.1, 0.05)
+    result = sample_region_grid(roi=roi_gdf, crs='EPSG:4326', stride=1, scale=1000.0,
+                                transform=align)
+    assert len(result) > 0
+    kx = (result.geometry.x.values - 0.05) / 0.1
+    ky = (result.geometry.y.values - 0.05) / 0.1
+    assert np.allclose(kx, np.round(kx))
+    assert np.allclose(ky, np.round(ky))
+
+def test_sample_region_grid_align_no_scale():
+    """transform supplies pixel size, so scale can be omitted."""
+    roi_gdf = gpd.GeoDataFrame(geometry=[box(0.0, 0.0, 1.0, 1.0)], crs='EPSG:4326')
+    align = Affine(0.1, 0, 0.05, 0, -0.1, 0.05)
+    result = sample_region_grid(roi=roi_gdf, crs='EPSG:4326', stride=1, transform=align)
+    assert len(result) > 0
+    kx = (result.geometry.x.values - 0.05) / 0.1
+    assert np.allclose(kx, np.round(kx))
+
+def test_sample_region_grid_requires_scale():
+    """Without transform, scale is required."""
+    roi_gdf = gpd.GeoDataFrame(geometry=[box(0.0, 0.0, 1.0, 1.0)], crs='EPSG:4326')
+    with pytest.raises(ValueError, match='scale'):
+        sample_region_grid(roi=roi_gdf, crs='EPSG:4326', stride=1)
+
+def test_sample_region_random_transform_snaps_points():
+    mock_roi = MagicMock(spec=gpd.GeoDataFrame)
+    mock_points = gpd.points_from_xy([12.3, 27.6], [51.1, 63.9], crs='EPSG:4326')
+    mock_roi.sample_points.return_value.geometry.explode.return_value = mock_points
+    mock_roi.crs.to_string.return_value = 'EPSG:4326'
+
+    align = Affine(5.0, 0, 0.0, 0, -5.0, 0.0)
+    result = sample_region_random(mock_roi, 'EPSG:4326', 2, transform=align)
+
+    assert list(result.geometry.x) == [10.0, 30.0]
+    assert list(result.geometry.y) == [50.0, 65.0]
+
+def test_sample_region_random_transform_warns_on_collision():
+    mock_roi = MagicMock(spec=gpd.GeoDataFrame)
+    # Two nearby points snap to the same coarse grid node -> collision
+    mock_points = gpd.points_from_xy([12.1, 12.4], [50.2, 49.8], crs='EPSG:4326')
+    mock_roi.sample_points.return_value.geometry.explode.return_value = mock_points
+    mock_roi.crs.to_string.return_value = 'EPSG:4326'
+
+    align = Affine(5.0, 0, 0.0, 0, -5.0, 0.0)
+    with pytest.warns(UserWarning, match='duplicate locations'):
+        result = sample_region_random(mock_roi, 'EPSG:4326', 2, transform=align)
+    # both collapsed onto (10, 50)
+    assert list(result.geometry.x) == [10.0, 10.0]
+    assert list(result.geometry.y) == [50.0, 50.0]
