@@ -1,15 +1,17 @@
 """Pipeline for writing to WebDataset format (.tar files containing .tif and .json)."""
 
-import os
 import json
-import webdataset as wds
-import apache_beam as beam
-from apache_beam.options.pipeline_options import PipelineOptions
-from rasterio.transform import Affine
-from rasterio.io import MemoryFile
+import os
 import uuid
 
+import apache_beam as beam
+import webdataset as wds
+from apache_beam.options.pipeline_options import PipelineOptions
+from rasterio.io import MemoryFile
+from rasterio.transform import Affine
+
 from geebeam import _transforms
+
 
 def _create_tiff_bytes(array_dict, metadata, crs, scale_x, scale_y):
     """Create TIFF bytes from array dict and metadata."""

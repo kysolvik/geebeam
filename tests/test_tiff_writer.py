@@ -1,8 +1,10 @@
 import os
-import pytest
+
 import numpy as np
+import pytest
 import rasterio
-from geebeam._tiff_writer import _build_tiff_name, WriteTiff, ProcessMetadataToParquet
+
+from geebeam._tiff_writer import ProcessMetadataToParquet, WriteTiff, _build_tiff_name
 
 
 def test_build_tiff_name():

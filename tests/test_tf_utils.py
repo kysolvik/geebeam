@@ -1,6 +1,13 @@
-import tensorflow as tf
 import numpy as np
-from geebeam._tf_utils import _bytes_feature, _float_feature, _int64_feature, _dict_to_example
+import tensorflow as tf
+
+from geebeam._tf_utils import (
+    _bytes_feature,
+    _dict_to_example,
+    _float_feature,
+    _int64_feature,
+)
+
 
 def test_features():
     assert isinstance(_bytes_feature(b'test'), tf.train.Feature)

@@ -1,16 +1,20 @@
 """Pipeline for writing image chips as Cloud-Optimized GeoTIFFs and metadata as Parquet."""
 
+import logging
 import os
 import tempfile
-import logging
+
 import apache_beam as beam
-from apache_beam.options.pipeline_options import PipelineOptions
-from apache_beam.io.filesystems import FileSystems
-import rasterio
-from rasterio.transform import Affine
 import pyarrow as pa
+import rasterio
+from apache_beam.io.filesystems import FileSystems
+from apache_beam.options.pipeline_options import PipelineOptions
+from rasterio.transform import Affine
 
 from geebeam import _transforms
+
+logger = logging.getLogger(__name__)
+
 
 def _build_tiff_name(id, min_digits=5):
     return f"{str(id).zfill(min_digits)}.tif"
@@ -28,8 +32,8 @@ class WriteTiff(beam.DoFn):
         if not FileSystems.exists(self.output_path):
             try:
                 FileSystems.mkdirs(self.output_path)
-            except Exception as e:
-                logging.warning(f"Error creating directory {self.output_path}: {e}")
+            except OSError as e:
+                logger.warning(f"Output dir already exists {self.output_path}: {e}")
 
     def process(self, element):
         metadata = element['metadata']
@@ -71,9 +75,9 @@ class WriteTiff(beam.DoFn):
                     dst.set_band_description(i, band_name)
             
             # Upload the temporary file to the final destination
-            with FileSystems.create(tiff_path) as dest:
-                with open(tmp.name, 'rb') as src:
-                    dest.write(src.read())
+            with (FileSystems.create(tiff_path) as dest,
+                  open(tmp.name, 'rb') as src):
+                dest.write(src.read())
 
 
 class ProcessMetadataToParquet(beam.DoFn):

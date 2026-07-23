@@ -1,14 +1,17 @@
 import json
-import numpy as np
 from unittest.mock import MagicMock, patch
+
+import numpy as np
+
 from geebeam._transforms import (
-    _split_dataset,
+    AddMetadata,
     _convert_to_iterable,
+    _join_struct_arrays_to_dict,
+    _split_dataset,
     _write_sidecar_schema,
     join_structured_arrays,
-    _join_struct_arrays_to_dict,
-    AddMetadata,
 )
+
 
 def test__split_dataset():
     element = {'metadata': {'split': 'train'}}

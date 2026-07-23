@@ -1,16 +1,20 @@
-import pytest
-import numpy as np
+from unittest.mock import MagicMock, patch
+
 import ee
-from unittest.mock import patch, MagicMock
+import numpy as np
+import pytest
+from apache_beam.options.pipeline_options import PipelineOptions
+from rasterio.transform import Affine
+
 from geebeam.pipeline import (
-    _prepare_run_metadata,
     _apply_position_offset,
-    _check_if_localrunner,
-    _type_inference,
     _build_md_feature_dict,
+    _check_if_localrunner,
+    _prepare_run_metadata,
+    _type_inference,
     run_pipeline,
 )
-from apache_beam.options.pipeline_options import PipelineOptions
+
 
 @patch('ee.Initialize')
 @patch('ee.Projection')
@@ -61,7 +65,7 @@ def test_type_inference_str():
     assert _type_inference('hello') == 'str'
 
 def test_type_inference_invalid():
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         _type_inference({'key': 'value'})
 
 def test_build_md_feature_dict_basic():
@@ -80,7 +84,7 @@ def test_build_md_feature_dict_with_extra_metadata():
 def test_build_md_feature_dict_invalid_type():
     record = {'id': 1, 'x': 10.0, 'y': 20.0, 'split': 'train'}
     extra_metadata = {'bad': {'nested': 'dict'}}
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         _build_md_feature_dict(record, extra_metadata)
 
 PATCH_SIZE = 10
@@ -123,6 +127,36 @@ def test_apply_position_offset_invalid_position():
     with pytest.raises(ValueError, match='Invalid position'):
         _apply_position_offset(records, 'middle', PATCH_SIZE, SCALE_X, SCALE_Y)
 
+@pytest.mark.parametrize('position', ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'center'])
+@pytest.mark.parametrize('patch_size', [4, 5])  # even and odd
+def test_apply_position_offset_align_snaps_topleft(position, patch_size):
+    """With align_transform, the top-left corner must land exactly on the reference grid,
+    for any position and any (even/odd) patch_size."""
+    # origin (0, 0), pixel size 1.0 -> grid nodes are integers
+    align = Affine(1.0, 0, 0.0, 0, -1.0, 0.0)
+    records = [{'id': 0, 'x': 3.37, 'y': 8.62, 'split': 'full'}]
+    result = _apply_position_offset(records, position, patch_size, 1.0, 1.0,
+                                    align_transform=align)
+    x_tl, y_tl = result[0]['x_topleft'], result[0]['y_topleft']
+    assert x_tl == round(x_tl)
+    assert y_tl == round(y_tl)
+    # original x/y preserved
+    assert result[0]['x'] == 3.37
+    assert result[0]['y'] == 8.62
+
+@patch('ee.Initialize')
+@patch('ee.Projection')
+def test_prepare_run_metadata_align_overrides_scale(mock_projection, mock_ee_init):
+    """align_transform pixel size overrides scale; ee.Projection should not be consulted."""
+    config = {'project_id': 'test-project', 'crs': 'EPSG:4326', 'scale': 30}
+    align = Affine(0.25, 0, 100.0, 0, -0.5, 200.0)
+
+    scale_x, scale_y = _prepare_run_metadata(config, align_transform=align)
+
+    assert scale_x == 0.25
+    assert scale_y == 0.5  # abs(-0.5)
+    mock_projection.assert_not_called()
+
 @patch('ee.Initialize')
 @patch('ee.Projection')
 def test_run_pipeline_wraps_single_image(mock_projection, mock_ee_init):
@@ -132,8 +166,8 @@ def test_run_pipeline_wraps_single_image(mock_projection, mock_ee_init):
     mock_projection.return_value.atScale.return_value = mock_proj_obj
 
     single_image = MagicMock(spec=ee.Image)
-    with pytest.warns(UserWarning, match='Wrapping provided single ee.Image'):
-        try:
+    with (pytest.warns(UserWarning, match='Wrapping provided single ee.Image'),
+          pytest.raises(TypeError)):
             run_pipeline(
                 image_list=single_image,
                 output_path='/tmp/test',
@@ -142,12 +176,35 @@ def test_run_pipeline_wraps_single_image(mock_projection, mock_ee_init):
                 scale=30.0,
                 sampling_points=MagicMock(),
             )
-        except Exception:
-            pass  # pipeline will fail further on; we only care the warning fired
+
+def test_run_pipeline_transform_warns_scale_ignored():
+    """Passing align_transform should warn that `scale` is ignored."""
+    with (pytest.warns(UserWarning, match='`scale` argument is ignored'),
+          pytest.raises(TypeError)):
+                run_pipeline(
+                    image_list=[MagicMock()],
+                    output_path='/tmp/test',
+                    project='test-project',
+                    patch_size=4,
+                    scale=30.0,
+                    sampling_points=MagicMock(),
+                    align_transform=Affine(0.001, 0, 0, 0, -0.001, 0),
+                )
+
+def test_run_pipeline_requires_scale_or_align():
+    """Neither scale nor align_transform provided should raise."""
+    with pytest.raises(ValueError, match='scale.*align_transform'):
+        run_pipeline(
+            image_list=[MagicMock()],
+            output_path='/tmp/test',
+            project='test-project',
+            patch_size=4,
+            sampling_points=MagicMock(),
+        )
 
 def test_run_pipeline_rejects_image_collection():
-    """An ee.ImageCollection passed as image_list should raise ValueError."""
-    with pytest.raises(ValueError, match='ee.ImageCollection'):
+    """An ee.ImageCollection passed as image_list should raise TypeError."""
+    with pytest.raises(TypeError, match='ee.ImageCollection'):
         run_pipeline(
             image_list=MagicMock(spec=ee.ImageCollection),
             output_path='/tmp/test',
@@ -158,7 +215,7 @@ def test_run_pipeline_rejects_image_collection():
         )
 
 def test_run_pipeline_invalid_output_type():
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         run_pipeline(
             image_list=[MagicMock()],
             output_path='/tmp/test',

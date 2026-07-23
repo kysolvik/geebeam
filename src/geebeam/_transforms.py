@@ -1,16 +1,20 @@
 """Beam _transforms and related utilities"""
 
-import logging
-import time
+import functools
 import json
+import logging
+import operator
 import os
+import time
 
-import numpy as np
-from apache_beam.io.gcp.gcsio import GcsIO
 import apache_beam as beam
 import ee
+import numpy as np
+from apache_beam.io.gcp.gcsio import GcsIO
 
 from geebeam import _ee_utils
+
+logger = logging.getLogger(__name__)
 
 def _write_json_to_local(json_string, local_path):
     data = json_string.encode('utf-8')
@@ -64,7 +68,7 @@ def _split_dataset(element, n_partitions) -> int:
 def join_structured_arrays(array_list):
     """Join structured array along features axis"""
     template = array_list[0]
-    new_dtype = sum([a.dtype.descr for a in array_list], [])
+    new_dtype = functools.reduce(operator.iadd, [a.dtype.descr for a in array_list], [])
     merged = np.empty(template.shape, dtype=new_dtype)
     for a in array_list:
         for feat in a.dtype.names:
@@ -102,7 +106,7 @@ class EEComputePatch(beam.DoFn):
         self.initialized = False
 
     def _initialize_ee(self):
-        logging.info(f"Initializing Earth Engine for project: {self.config['project_id']}")
+        logger.info(f"Initializing Earth Engine for project: {self.config['project_id']}")
         ee.Initialize(project=self.config['project_id'],
                       opt_url='https://earthengine-highvolume.googleapis.com')
         self.initialized = True
@@ -125,7 +129,7 @@ class EEComputePatch(beam.DoFn):
 
         out_dict = {'metadata': dict(point)}
         out_dict['array'] = _join_struct_arrays_to_dict(out_ars)
-        logging.info(
+        logger.info(
             f"EE loaded, {point['id']}, took {time.time() - t0:.1f}s"
         )
         yield out_dict

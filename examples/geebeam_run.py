@@ -1,8 +1,9 @@
 """Execute GEE tile extraction in Beam + Dataflow"""
 
 import ee
-import geebeam
 import google
+
+import geebeam
 
 # Get default project id from environment (or specify PROJECT_ID manually)
 PROJECT_ID = google.auth.default()[1]
