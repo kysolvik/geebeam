@@ -128,13 +128,13 @@ def test_apply_position_offset_invalid_position():
 @pytest.mark.parametrize('position', ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'center'])
 @pytest.mark.parametrize('patch_size', [4, 5])  # even and odd
 def test_apply_position_offset_align_snaps_topleft(position, patch_size):
-    """With transform, the top-left corner must land exactly on the reference grid,
+    """With align_transform, the top-left corner must land exactly on the reference grid,
     for any position and any (even/odd) patch_size."""
     # origin (0, 0), pixel size 1.0 -> grid nodes are integers
     align = Affine(1.0, 0, 0.0, 0, -1.0, 0.0)
     records = [{'id': 0, 'x': 3.37, 'y': 8.62, 'split': 'full'}]
     result = _apply_position_offset(records, position, patch_size, 1.0, 1.0,
-                                    transform=align)
+                                    align_transform=align)
     x_tl, y_tl = result[0]['x_topleft'], result[0]['y_topleft']
     assert x_tl == round(x_tl)
     assert y_tl == round(y_tl)
@@ -145,11 +145,11 @@ def test_apply_position_offset_align_snaps_topleft(position, patch_size):
 @patch('ee.Initialize')
 @patch('ee.Projection')
 def test_prepare_run_metadata_align_overrides_scale(mock_projection, mock_ee_init):
-    """transform pixel size overrides scale; ee.Projection should not be consulted."""
+    """align_transform pixel size overrides scale; ee.Projection should not be consulted."""
     config = {'project_id': 'test-project', 'crs': 'EPSG:4326', 'scale': 30}
     align = Affine(0.25, 0, 100.0, 0, -0.5, 200.0)
 
-    scale_x, scale_y = _prepare_run_metadata(config, transform=align)
+    scale_x, scale_y = _prepare_run_metadata(config, align_transform=align)
 
     assert scale_x == 0.25
     assert scale_y == 0.5  # abs(-0.5)
@@ -178,7 +178,7 @@ def test_run_pipeline_wraps_single_image(mock_projection, mock_ee_init):
             pass  # pipeline will fail further on; we only care the warning fired
 
 def test_run_pipeline_transform_warns_scale_ignored():
-    """Passing transform should warn that `scale` is ignored."""
+    """Passing align_transform should warn that `scale` is ignored."""
     with pytest.warns(UserWarning, match='`scale` argument is ignored'):
         try:
             run_pipeline(
@@ -188,14 +188,14 @@ def test_run_pipeline_transform_warns_scale_ignored():
                 patch_size=4,
                 scale=30.0,
                 sampling_points=MagicMock(),
-                transform=Affine(0.001, 0, 0, 0, -0.001, 0),
+                align_transform=Affine(0.001, 0, 0, 0, -0.001, 0),
             )
         except Exception:
             pass  # pipeline will fail further on; we only care the warning fired
 
 def test_run_pipeline_requires_scale_or_align():
-    """Neither scale nor transform provided should raise."""
-    with pytest.raises(ValueError, match='scale.*transform'):
+    """Neither scale nor align_transform provided should raise."""
+    with pytest.raises(ValueError, match='scale.*align_transform'):
         run_pipeline(
             image_list=[MagicMock()],
             output_path='/tmp/test',
@@ -205,7 +205,7 @@ def test_run_pipeline_requires_scale_or_align():
         )
 
 def test_grid_and_run_pipeline_requires_stride():
-    """stride is required for grid sampling even when transform supplies pixel size."""
+    """stride is required for grid sampling even when align_transform supplies pixel size."""
     with pytest.raises(ValueError, match='stride'):
         grid_and_run_pipeline(
             image_list=[MagicMock()],
@@ -213,7 +213,7 @@ def test_grid_and_run_pipeline_requires_stride():
             output_path='/tmp/test',
             project='test-project',
             patch_size=4,
-            transform=Affine(0.001, 0, 0, 0, -0.001, 0),
+            align_transform=Affine(0.001, 0, 0, 0, -0.001, 0),
         )
 
 def test_run_pipeline_rejects_image_collection():

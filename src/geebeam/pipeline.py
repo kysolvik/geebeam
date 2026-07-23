@@ -56,12 +56,12 @@ def _build_md_feature_dict(record, extra_metadata):
             md_feature_dict[key] = md_type
     return md_feature_dict
 
-def _prepare_run_metadata(config, transform=None):
+def _prepare_run_metadata(config, align_transform=None):
     ee.Initialize(project=config['project_id'])
 
-    if transform is not None:
+    if align_transform is not None:
         # Pixel size comes from the alignment transform (overrides config['scale'])
-        _, _, scale_x, scale_y = sampler._parse_transform(transform)
+        _, _, scale_x, scale_y = sampler._parse_transform(align_transform)
         return scale_x, scale_y
 
     proj = ee.Projection(config['crs']).atScale(config['scale'])
@@ -74,10 +74,10 @@ def _prepare_run_metadata(config, transform=None):
 
 
 def _apply_position_offset(input_records, position, patch_size, scale_x, scale_y,
-                           transform=None):
+                           align_transform=None):
     """Add x_topleft/y_topleft to each record; original x/y is preserved.
 
-    If transform (a rasterio Affine or array-like with length 6 in the
+    If align_transform (a rasterio Affine or array-like with length 6 in the
     target crs) is provided, each patch's top-left corner is snapped onto that
     transform's pixel grid so the extracted patch aligns exactly.
     """
@@ -99,8 +99,8 @@ def _apply_position_offset(input_records, position, patch_size, scale_x, scale_y
     else:
         raise ValueError(f"Invalid position '{position}'. Must be one of: {sorted(_valid_positions)}")
     records = [{**r, 'x_topleft': r['x'] + dx, 'y_topleft': r['y'] + dy} for r in input_records]
-    if transform is not None:
-        x0, y0, sx, sy = sampler._parse_transform(transform)
+    if align_transform is not None:
+        x0, y0, sx, sy = sampler._parse_transform(align_transform)
         for r in records:
             r['x_topleft'], r['y_topleft'] = sampler._snap_to_grid(
                 r['x_topleft'], r['y_topleft'], x0, y0, sx, sy)
@@ -114,7 +114,7 @@ def run_pipeline(
         patch_size: int,
         scale: float | None = None,
         crs: str = 'EPSG:4326',
-        transform: Affine | tuple[float] | list[float] | None = None,
+        align_transform: Affine | tuple[float] | list[float] | None = None,
         output_type: str = 'tiff',
         split_processing: bool = False,
         extra_metadata: dict = {},
@@ -132,10 +132,10 @@ def run_pipeline(
         output_path: The path where output will be saved.
         project: The Google Cloud project ID.
         patch_size: The size of the patches to be processed.
-        scale: Export resolution in meters. Required unless ``transform`` is provided
+        scale: Export resolution in meters. Required unless ``align_transform`` is provided
             (in which case pixel size comes from the transform and ``scale`` is ignored).
         crs: The coordinate reference system. Defaults to 'EPSG:4326'.
-        transform: Optional full geospatial transform (a rasterio ``Affine`` or a
+        align_transform: Optional full geospatial transform (a rasterio ``Affine`` or a
             list/tuple (length 6) ``(a, b, c, d, e, f)`` in ``crs`` units) to align patches
             to. When provided, the pixel size is taken from the transform and ``scale`` is
             ignored (a warning is emitted), and each patch's top-left corner is snapped onto
@@ -174,14 +174,14 @@ def run_pipeline(
         )
         image_list = [image_list]
 
-    if scale is None and transform is None:
+    if scale is None and align_transform is None:
         raise ValueError(
-            'Provide `scale` (export resolution in meters) or `transform`; '
+            'Provide `scale` (export resolution in meters) or `align_transform`; '
             'pixel size is derived from one of them.'
         )
-    if transform is not None and scale is not None:
+    if align_transform is not None and scale is not None:
         warnings.warn(
-            'Both transform and scale are set; the `scale` argument is ignored. '
+            'Both align_transform and scale are set; the `scale` argument is ignored. '
             'Pixel size is taken from the transform (in crs units) instead.',
             UserWarning,
             stacklevel=2
@@ -220,11 +220,11 @@ def run_pipeline(
     input_records, splits = sampler._process_sampling_points(sampling_points, target_crs=config['crs'])
 
     # Pre-run info:
-    scale_x, scale_y = _prepare_run_metadata(config, transform)
+    scale_x, scale_y = _prepare_run_metadata(config, align_transform)
 
     # Offset sampling location (x, y) -> (x_topleft, y_topleft) based on position arg
     input_records = _apply_position_offset(input_records, position, patch_size, scale_x, scale_y,
-                                           transform=transform)
+                                           align_transform=align_transform)
 
     # Get types of extra non-image data in extra_metadata or input_records
     md_feature_dict = _build_md_feature_dict(input_records[0], extra_metadata)
@@ -338,7 +338,7 @@ def sample_and_run_pipeline(
         crs: str = 'EPSG:4326',
         validation_ratio: float = 0,
         random_seed: int = 0,
-        transform: Affine | tuple[float] | list[float] | None = None,
+        align_transform: Affine | tuple[float] | list[float] | None = None,
         **kwargs
         ) -> None:
     """Sample random points and then run a Beam pipeline to download image chips from Earth Engine.
@@ -350,12 +350,12 @@ def sample_and_run_pipeline(
         output_path: The path where output will be saved.
         project: The Google Cloud project ID.
         patch_size: The size of the patches to be processed.
-        scale: Export resolution in meters. Required unless ``transform`` is provided.
+        scale: Export resolution in meters. Required unless ``align_transform`` is provided.
         validation_ratio: Fraction of points to mark as validation.
         random_seed: Seed for random sampling
         split_processing: Flag to indicate if processing should be split. Defaults to False.
         crs: The coordinate reference system for sampling. Defaults to 'EPSG:4326'.
-        transform: Optional full geospatial transform (rasterio ``Affine`` or list-like length 6
+        align_transform: Optional full geospatial align_transform (rasterio ``Affine`` or list-like length 6
             ``crs`` units) to align samples to. See :meth:`pipeline.run_pipeline`. Defaults to None.
         **kwargs: Additional keyword arguments are documented in :meth:`pipeline.run_pipeline`.
 
@@ -366,7 +366,7 @@ def sample_and_run_pipeline(
         n_sample=n_sample,
         random_seed=random_seed,
         crs=crs,
-        transform=transform,
+        align_transform=align_transform,
     )
 
     if validation_ratio > 0:
@@ -383,7 +383,7 @@ def sample_and_run_pipeline(
         project=project,
         patch_size=patch_size,
         scale=scale,
-        transform=transform,
+        align_transform=align_transform,
         **kwargs)
 
 def grid_and_run_pipeline(
@@ -394,7 +394,7 @@ def grid_and_run_pipeline(
         patch_size: int,
         stride: int,
         scale: float | None = None,
-        transform: Affine | tuple[float] | list[float] | None = None,
+        align_transform: Affine | tuple[float] | list[float] | None = None,
         crs: str = 'EPSG:4326',
         buffer_distance: float = 0,
         validation_ratio: float = 0,
@@ -412,10 +412,10 @@ def grid_and_run_pipeline(
         stride: Number of pixels between consecutive samples. If want full coverage without
             overlaps, stride should be equal to patch_size. If less than patch_size, will
             generate overlaps. If greater, will be gaps between sampled patches.
-        scale: Export resolution in meters. Required unless ``transform`` is provided.
-        transform: Optional full geospatial transform (rasterio ``Affine`` or list-like
+        scale: Export resolution in meters. Required unless ``align_transform`` is provided.
+        align_transform: Optional full geospatial align_transform (rasterio ``Affine`` or list-like
             (length 6) in ``crs`` units) to align samples to. When provided, the grid uses
-            the transform's pixel size and origin. See :meth:`pipeline.run_pipeline`.
+            the align_transform's pixel size and origin. See :meth:`pipeline.run_pipeline`.
             Defaults to None.
         crs: The coordinate reference system for sampling. Defaults to 'EPSG:4326'.
         buffer_distance: Distance (in meters) to buffer sampling_region by before gridding.
@@ -431,7 +431,7 @@ def grid_and_run_pipeline(
         stride=stride,
         scale=scale,
         buffer_distance=buffer_distance,
-        transform=transform,
+        align_transform=align_transform,
     )
 
     if validation_ratio > 0:
@@ -448,5 +448,5 @@ def grid_and_run_pipeline(
         project=project,
         patch_size=patch_size,
         scale=scale,
-        transform=transform,
+        align_transform=align_transform,
         **kwargs)

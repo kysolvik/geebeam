@@ -191,7 +191,7 @@ def test_sample_region_grid_transform():
     # origin (0.05, 0.05), pixel size 0.1; align mode should NOT call _get_crs_scale
     align = Affine(0.1, 0, 0.05, 0, -0.1, 0.05)
     result = sample_region_grid(roi=roi_gdf, crs='EPSG:4326', stride=1, scale=1000.0,
-                                transform=align)
+                                align_transform=align)
     assert len(result) > 0
     kx = (result.geometry.x.values - 0.05) / 0.1
     ky = (result.geometry.y.values - 0.05) / 0.1
@@ -199,10 +199,11 @@ def test_sample_region_grid_transform():
     assert np.allclose(ky, np.round(ky))
 
 def test_sample_region_grid_align_no_scale():
-    """transform supplies pixel size, so scale can be omitted."""
+    """align_transform supplies pixel size, so scale can be omitted."""
     roi_gdf = gpd.GeoDataFrame(geometry=[box(0.0, 0.0, 1.0, 1.0)], crs='EPSG:4326')
     align = Affine(0.1, 0, 0.05, 0, -0.1, 0.05)
-    result = sample_region_grid(roi=roi_gdf, crs='EPSG:4326', stride=1, transform=align)
+    result = sample_region_grid(roi=roi_gdf, crs='EPSG:4326', stride=1,
+                                align_transform=align)
     assert len(result) > 0
     kx = (result.geometry.x.values - 0.05) / 0.1
     assert np.allclose(kx, np.round(kx))
@@ -220,7 +221,7 @@ def test_sample_region_random_transform_snaps_points():
     mock_roi.crs.to_string.return_value = 'EPSG:4326'
 
     align = Affine(5.0, 0, 0.0, 0, -5.0, 0.0)
-    result = sample_region_random(mock_roi, 'EPSG:4326', 2, transform=align)
+    result = sample_region_random(mock_roi, 'EPSG:4326', 2, align_transform=align)
 
     assert list(result.geometry.x) == [10.0, 30.0]
     assert list(result.geometry.y) == [50.0, 65.0]
@@ -234,7 +235,7 @@ def test_sample_region_random_transform_warns_on_collision():
 
     align = Affine(5.0, 0, 0.0, 0, -5.0, 0.0)
     with pytest.warns(UserWarning, match='duplicate locations'):
-        result = sample_region_random(mock_roi, 'EPSG:4326', 2, transform=align)
+        result = sample_region_random(mock_roi, 'EPSG:4326', 2, align_transform=align)
     # both collapsed onto (10, 50)
     assert list(result.geometry.x) == [10.0, 10.0]
     assert list(result.geometry.y) == [50.0, 50.0]

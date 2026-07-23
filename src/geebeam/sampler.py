@@ -120,11 +120,11 @@ def sample_region_random(
         n_sample: int,
         random_seed: int = 0,
         buffer_distance: float = 0,
-        transform: Affine | tuple[float] | list[float] | None = None,
+        align_transform: Affine | tuple[float] | list[float] | None = None,
         ) -> gpd.GeoDataFrame:
     """Get random points within region of interest.
 
-    If transform (a rasterio Affine or list/tuple length 6 in the target crs) is provided,
+    If align_transform (a rasterio Affine or list/tuple length 6 in the target crs) is provided,
     the sampled points are snapped onto that transform's pixel grid. Note that snapping to a grid
     that is coarse relative to the sampling density can collapse distinct random points
     onto the same location; a warning is emitted if this happens.
@@ -137,8 +137,8 @@ def sample_region_random(
 
     sampled_points = gpd.GeoDataFrame(geometry=roi.sample_points(n_sample, rng=rng).geometry.explode(),
                                       crs=crs)
-    if transform is not None:
-        x0, y0, sx, sy = _parse_transform(transform)
+    if align_transform is not None:
+        x0, y0, sx, sy = _parse_transform(align_transform)
         xs, ys = _snap_to_grid(sampled_points.geometry.x.values,
                                sampled_points.geometry.y.values, x0, y0, sx, sy)
         n_unique = np.unique(np.column_stack([xs, ys]), axis=0).shape[0]
@@ -148,7 +148,7 @@ def sample_region_random(
                 f'transform snapped {n_collisions} of {len(xs)} random point(s) onto '
                 'locations already occupied by another point (duplicate locations). The '
                 'alignment grid is coarse relative to the sampling density; use a finer '
-                'transform or fewer points to avoid duplicates.',
+                'align_transform or fewer points to avoid duplicates.',
                 UserWarning,
                 stacklevel=2
             )
@@ -161,27 +161,27 @@ def sample_region_grid(
         crs: str,
         stride: int,
         scale: float | None = None,
-        transform: Affine | tuple[float] | list[float] | None = None,
+        align_transform: Affine | tuple[float] | list[float] | None = None,
         buffer_distance: float = 0,
         ) -> gpd.GeoDataFrame:
     """Get a regular grid of points covering region of interest.
 
-    ``scale`` (grid spacing in meters, as scale*stride) is required unless transform
-    is provided. If transform (a rasterio Affine or 6-tuple in the target crs) is
+    ``scale`` (grid spacing in meters, as scale*stride) is required unless ``align_transform``
+    is provided. If transform (a rasterio Affine or list/tuple in the target crs) is
     provided, the grid uses that transform's pixel size (``scale`` is ignored) and its origin
     is anchored to the transform, so every location falls on that transform's pixel grid.
     """
-    if transform is None and scale is None:
-        raise ValueError('`scale` is required unless transform is provided.')
+    if align_transform is None and scale is None:
+        raise ValueError('`scale` is required unless align_transform is provided.')
     roi = _get_roi(roi, crs)
-    if transform is not None:
-        x0, y0, sx, sy = _parse_transform(transform)
+    if align_transform is not None:
+        x0, y0, sx, sy = _parse_transform(align_transform)
         if buffer_distance != 0:
             scale_proj_1m = _get_crs_scale(roi.crs.to_string(), 1)
             roi = roi.dissolve().buffer(scale_proj_1m*buffer_distance)
         xmin, ymin, xmax, ymax = roi.total_bounds
         step_x, step_y = sx*stride, sy*stride
-        # Anchor the grid to the reference transform (nodes = origin + whole pixels)
+        # Anchor the grid to the reference transform
         x_start = x0 + np.floor((xmin - x0)/sx)*sx
         y_start = y0 + np.floor((ymin - y0)/sy)*sy
         x_locs = np.arange(x_start, xmax+step_x, step_x)
