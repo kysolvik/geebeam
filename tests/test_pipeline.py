@@ -10,7 +10,6 @@ from geebeam.pipeline import (
     _type_inference,
     _build_md_feature_dict,
     run_pipeline,
-    grid_and_run_pipeline,
 )
 from apache_beam.options.pipeline_options import PipelineOptions
 
