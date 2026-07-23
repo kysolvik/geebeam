@@ -2,6 +2,7 @@
 
 import json
 import warnings
+from functools import partial
 
 import ee
 import geopandas as gpd
@@ -219,6 +220,9 @@ def _assign_splits_pandas(df, split_dict, random_seed=0, shuffle=True):
 
     return df
 
+def _set_split_ee(f, split_name):
+    return ee.Feature(f).set('split', split_name)
+
 def _assign_splits_ee(ee_fc, split_dict, random_seed=0, shuffle=True):
     cur_index = 0
     # Shuffle order
@@ -229,12 +233,10 @@ def _assign_splits_ee(ee_fc, split_dict, random_seed=0, shuffle=True):
     cur_index = 0
 
     for split_name, split_count in split_dict.items():
+        _set_cur_split = partial(_set_split_ee(split_name=split_name))
         fc_slice = ee_fc.toList(count=split_count,
-                               offset=cur_index)
-        def _set_split_ee(f):
-            return ee.Feature(f).set('split', split_name)
-
-        output_features.append(fc_slice.map(_set_split_ee))
+                                offset=cur_index)
+        output_features.append(fc_slice.map(_set_cur_split))
         cur_index += split_count
 
     # Flatten the list of lists back into a single FeatureCollection
