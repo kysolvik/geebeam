@@ -392,7 +392,7 @@ def grid_and_run_pipeline(
         output_path: str,
         project: str,
         patch_size: int,
-        stride: int,
+        stride: int | None = None,
         scale: float | None = None,
         align_transform: Affine | tuple[float] | list[float] | None = None,
         crs: str = 'EPSG:4326',
@@ -411,7 +411,8 @@ def grid_and_run_pipeline(
         patch_size: The size of the patches to be processed.
         stride: Number of pixels between consecutive samples. If want full coverage without
             overlaps, stride should be equal to patch_size. If less than patch_size, will
-            generate overlaps. If greater, will be gaps between sampled patches.
+            generate overlaps. If greater, will be gaps between sampled patches. If None,
+            defaults to patch_size. Default is None.
         scale: Export resolution in meters. Required unless ``align_transform`` is provided.
         align_transform: Optional full geospatial align_transform (rasterio ``Affine`` or list-like
             (length 6) in ``crs`` units) to align samples to. When provided, the grid uses
@@ -424,6 +425,9 @@ def grid_and_run_pipeline(
         random_seed: Seed for random sampling
         **kwargs: Additional keyword arguments are documented in :meth:`pipeline.run_pipeline`.
     """
+
+    if stride is None:
+        stride = patch_size
 
     sample_points = sampler.sample_region_grid(
         roi=sampling_region,

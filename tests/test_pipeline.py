@@ -204,18 +204,6 @@ def test_run_pipeline_requires_scale_or_align():
             sampling_points=MagicMock(),
         )
 
-def test_grid_and_run_pipeline_requires_stride():
-    """stride is required for grid sampling even when align_transform supplies pixel size."""
-    with pytest.raises(ValueError, match='stride'):
-        grid_and_run_pipeline(
-            image_list=[MagicMock()],
-            sampling_region=MagicMock(),
-            output_path='/tmp/test',
-            project='test-project',
-            patch_size=4,
-            align_transform=Affine(0.001, 0, 0, 0, -0.001, 0),
-        )
-
 def test_run_pipeline_rejects_image_collection():
     """An ee.ImageCollection passed as image_list should raise ValueError."""
     with pytest.raises(ValueError, match='ee.ImageCollection'):
