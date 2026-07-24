@@ -70,7 +70,6 @@ def _prepare_run_metadata(config, align_transform=None):
 
     return scale_x, scale_y
 
-
 def _apply_position_offset(input_records, position, patch_size, scale_x, scale_y,
                            align_transform=None):
     """Add x_topleft/y_topleft to each record; original x/y is preserved.
