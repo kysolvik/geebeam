@@ -162,12 +162,23 @@ def sample_region_random(
         buffer_distance: float = 0,
         align_transform: Affine | tuple[float] | list[float] | None = None,
         ) -> gpd.GeoDataFrame:
-    """Get random points within region of interest.
+    """Sample random points within a region of interest.
 
-    If align_transform (a rasterio Affine or list/tuple length 6 in the target crs) is provided,
-    the sampled points are snapped onto that transform's pixel grid. Note that snapping to a grid
-    that is coarse relative to the sampling density can collapse distinct random points
-    onto the same location; a warning is emitted if this happens.
+    Args:
+        roi: Region to sample from. May be a path to a vector file (str), an
+            ``ee.Geometry``, a ``shapely`` geometry, or a ``gpd.GeoDataFrame``;
+            a differing CRS is reprojected to ``crs``.
+        crs: Target CRS for the returned points (e.g. 'EPSG:4326').
+        n_sample: Number of random points to sample/draw.
+        random_seed: Seed for reproducible sampling. Defaults to 0.
+        buffer_distance: Distance in meters to buffer ``roi`` before sampling, so
+            points can fall slightly outside the region. Defaults to 0 (no buffer).
+        align_transform: Optional rasterio ``Affine`` or length-6 tuple/list (in
+            ``crs`` units). If given, each point is snapped onto that transform's
+            pixel grid; a warning is emitted if snapping produces duplicate locations.
+
+    Returns:
+        GeoDataFrame of point geometries in ``crs``.
     """
     rng = np.random.default_rng(random_seed)
     roi = _get_roi(roi, crs)
@@ -205,22 +216,43 @@ def sample_region_grid(
         buffer_distance: float = 0,
         patch_size: int | None = None,
         position: str = 'center',
-        tile_coverage: str = 'clip',
+        tile_coverage: str = 'center_clip',
         ) -> gpd.GeoDataFrame:
-    """Get a regular grid of points covering region of interest.
+    """Build a regular grid of sampling points covering a region of interest.
 
-    ``scale`` (grid spacing in meters, as scale*stride) is required unless ``align_transform``
-    is provided. If transform (a rasterio Affine or list/tuple in the target crs) is
-    provided, the grid uses that transform's pixel size (``scale`` is ignored) and its origin
-    is anchored to the transform, so every location falls on that transform's pixel grid.
+    Args:
+        roi: Region to sample from. May be a path to a vector file (str), an
+            ``ee.Geometry``, a ``shapely`` geometry, or a ``gpd.GeoDataFrame``;
+            a differing CRS is reprojected to ``crs``.
+        crs: Target CRS for the returned points (e.g. 'EPSG:4326').
+        stride: Spacing between adjacent points, in pixels (the spacing in ``crs``
+            units is ``stride`` times the pixel size).
+        scale: Pixel size / export resolution in meters. Required unless
+            ``align_transform`` is given.
+        align_transform: Optional rasterio ``Affine`` or length-6 tuple/list (in
+            ``crs`` units). If given, the grid uses this transform's pixel size
+            (``scale`` is ignored) and is anchored to its origin, so every point
+            lands on the transform's pixel grid. Defaults to None.
+        buffer_distance: Distance in meters to buffer ``roi`` before gridding, to
+            help ensure coverage at the edges. Defaults to 0 (no buffer).
+        patch_size: Patch size in pixels. Only required when ``tile_coverage`` is not
+            'clip'. Defaults to None.
+        position: Where each point sits within its patch: 'center' (default),
+            'top-left', 'top-right', 'bottom-left', or 'bottom-right'. Only
+            matters when ``tile_coverage`` is not 'clip'.
+        tile_coverage: Which tiles to keep relative to ``roi``. 'center_clip' (default)
+            keeps a tile if its patch center falls inside ``roi``,
+            'clip' keeps a tile if its sampling point falls inside ``roi``;
+            'intersect' keeps a tile if any part of its patch footprint
+            touches ``roi``. 'center_clip' and 'intersect' require ``patch_size``.
 
-    ``tile_coverage`` selects which grid tiles are kept relative to ``roi``:
-    'center_clip' (default) keeps a tile only if its patch *center* falls inside ``roi``.
-    'clip' keeps a tile only if its sampling point (the patch reference point set
-    by ``position``) falls inside ``roi``.  'intersect' keeps any tile whose full
-    ``patch_size`` footprint touches ``roi``, guaranteeing gap-free coverage at the edges.
-    'center_clip' and 'intersect' both require ``patch_size`` and use ``position`` to locate
-    the patch relative to the sampling point.
+    Returns:
+        GeoDataFrame of grid point geometries in ``crs``.
+
+    Raises:
+        ValueError: If ``tile_coverage`` is invalid, if 'center_clip'/'intersect' is
+            requested without ``patch_size``, or if neither ``scale`` nor
+            ``align_transform`` is provided.
     """
     if tile_coverage not in ('clip', 'center_clip', 'intersect'):
         raise ValueError(f"Invalid tile_coverage '{tile_coverage}'. "
