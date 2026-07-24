@@ -10,6 +10,7 @@ from shapely.geometry import box
 from geebeam.sampler import (
     _get_roi,
     _parse_transform,
+    _position_offset,
     _process_sampling_points,
     _snap_to_grid,
     sample_region_grid,
@@ -216,6 +217,104 @@ def test_sample_region_grid_requires_scale():
     roi_gdf = gpd.GeoDataFrame(geometry=[box(0.0, 0.0, 1.0, 1.0)], crs='EPSG:4326')
     with pytest.raises(ValueError, match='scale'):
         sample_region_grid(roi=roi_gdf, crs='EPSG:4326', stride=1)
+
+def test_sample_region_grid_intersect_more_points():
+    """tile_coverage='intersect' keeps edge tiles the default clip rule drops."""
+    roi_gdf = gpd.GeoDataFrame(geometry=[box(0.0, 0.0, 1.0, 1.0)], crs='EPSG:4326')
+    with patch('geebeam.sampler._get_crs_scale', return_value=0.1):
+        clip = sample_region_grid(roi=roi_gdf, crs='EPSG:4326', stride=1,
+                                  scale=1000.0, patch_size=2)
+        intersect = sample_region_grid(roi=roi_gdf, crs='EPSG:4326', stride=1,
+                                       scale=1000.0, patch_size=2,
+                                       tile_coverage='intersect')
+    # Edge tiles (center outside ROI but footprint overlapping) are retained.
+    assert len(intersect) > len(clip)
+    # Every retained tile's footprint really does touch the ROI.
+    roi_geom = roi_gdf.union_all()
+    half = 2 * 0.1 / 2  # patch_size * scale_proj / 2, centered position
+    for pt in intersect.geometry:
+        tile = box(pt.x - half, pt.y - half, pt.x + half, pt.y + half)
+        assert tile.intersects(roi_geom)
+
+def test_sample_region_grid_intersect_requires_patch_size():
+    """intersect mode needs patch_size to build the tile footprint."""
+    roi_gdf = gpd.GeoDataFrame(geometry=[box(0.0, 0.0, 1.0, 1.0)], crs='EPSG:4326')
+    with pytest.raises(ValueError, match='patch_size'):
+        sample_region_grid(roi=roi_gdf, crs='EPSG:4326', stride=1, scale=1000.0,
+                            tile_coverage='intersect')
+
+def test_sample_region_grid_invalid_tile_coverage():
+    roi_gdf = gpd.GeoDataFrame(geometry=[box(0.0, 0.0, 1.0, 1.0)], crs='EPSG:4326')
+    with pytest.raises(ValueError, match='tile_coverage'):
+        sample_region_grid(roi=roi_gdf, crs='EPSG:4326', stride=1, scale=1000.0,
+                            patch_size=2, tile_coverage='nonsense')
+
+def test_sample_region_grid_intersect_position():
+    """The tile footprint is placed according to `position`."""
+    roi_gdf = gpd.GeoDataFrame(geometry=[box(0.0, 0.0, 1.0, 1.0)], crs='EPSG:4326')
+    with patch('geebeam.sampler._get_crs_scale', return_value=0.1):
+        center = sample_region_grid(roi=roi_gdf, crs='EPSG:4326', stride=1, scale=1000.0,
+                                    patch_size=2, tile_coverage='intersect', position='center')
+        top_left = sample_region_grid(roi=roi_gdf, crs='EPSG:4326', stride=1, scale=1000.0,
+                                      patch_size=2, tile_coverage='intersect', position='top-left')
+    # For 'top-left' the patch extends up/right of the anchor, so retained anchors
+    # sit further toward the lower-left than for 'center'.
+    assert top_left.geometry.x.mean() < center.geometry.x.mean()
+    assert top_left.geometry.y.mean() < center.geometry.y.mean()
+
+def test_sample_region_grid_center_clip_matches_clip_for_center_position():
+    """With position='center' the sampling point is the patch center, so
+    'center_clip' and the default 'clip' select the same tiles."""
+    roi_gdf = gpd.GeoDataFrame(geometry=[box(0.0, 0.0, 1.0, 1.0)], crs='EPSG:4326')
+    with patch('geebeam.sampler._get_crs_scale', return_value=0.1):
+        clip = sample_region_grid(roi=roi_gdf, crs='EPSG:4326', stride=1, scale=1000.0,
+                                  patch_size=2)
+        center_clip = sample_region_grid(roi=roi_gdf, crs='EPSG:4326', stride=1, scale=1000.0,
+                                         patch_size=2, tile_coverage='center_clip',
+                                         position='center')
+    clip_pts = {(round(p.x, 6), round(p.y, 6)) for p in clip.geometry}
+    cc_pts = {(round(p.x, 6), round(p.y, 6)) for p in center_clip.geometry}
+    assert clip_pts == cc_pts
+
+def test_sample_region_grid_clip_ignores_position():
+    """The default 'clip' rule is position-independent (it clips the sampling point)."""
+    roi_gdf = gpd.GeoDataFrame(geometry=[box(0.0, 0.0, 1.0, 1.0)], crs='EPSG:4326')
+    with patch('geebeam.sampler._get_crs_scale', return_value=0.1):
+        clip_center = sample_region_grid(roi=roi_gdf, crs='EPSG:4326', stride=1, scale=1000.0,
+                                         patch_size=2, position='center')
+        clip_top_left = sample_region_grid(roi=roi_gdf, crs='EPSG:4326', stride=1, scale=1000.0,
+                                           patch_size=2, position='top-left')
+    assert clip_center.geometry.x.mean() == clip_top_left.geometry.x.mean()
+    assert clip_center.geometry.y.mean() == clip_top_left.geometry.y.mean()
+
+def test_sample_region_grid_center_clip_position_aware():
+    """Unlike 'clip', 'center_clip' shifts the selection with `position`."""
+    roi_gdf = gpd.GeoDataFrame(geometry=[box(0.0, 0.0, 1.0, 1.0)], crs='EPSG:4326')
+    with patch('geebeam.sampler._get_crs_scale', return_value=0.1):
+        center = sample_region_grid(roi=roi_gdf, crs='EPSG:4326', stride=1, scale=1000.0,
+                                    patch_size=2, tile_coverage='center_clip', position='center')
+        top_left = sample_region_grid(roi=roi_gdf, crs='EPSG:4326', stride=1, scale=1000.0,
+                                      patch_size=2, tile_coverage='center_clip', position='top-left')
+    # 'top-left' places the patch up/right of the anchor, so anchors whose *center* lands
+    # in the ROI sit further toward the lower-left than for 'center'.
+    assert top_left.geometry.x.mean() < center.geometry.x.mean()
+    assert top_left.geometry.y.mean() < center.geometry.y.mean()
+
+def test_sample_region_grid_center_clip_requires_patch_size():
+    roi_gdf = gpd.GeoDataFrame(geometry=[box(0.0, 0.0, 1.0, 1.0)], crs='EPSG:4326')
+    with pytest.raises(ValueError, match='patch_size'):
+        sample_region_grid(roi=roi_gdf, crs='EPSG:4326', stride=1, scale=1000.0,
+                            tile_coverage='center_clip')
+
+def test_position_offset():
+    # center: anchor is half a patch in from the top-left corner
+    assert _position_offset('center', 4, 0.5, 0.5) == (-1.0, -1.0)
+    # top-left: anchor is the corner, no offset
+    assert _position_offset('top-left', 4, 0.5, 0.5) == (0, 0)
+    # bottom-right: corner is a full patch back in both directions
+    assert _position_offset('bottom-right', 4, 0.5, 0.5) == (-2.0, -2.0)
+    with pytest.raises(ValueError, match='Invalid position'):
+        _position_offset('middle', 4, 0.5, 0.5)
 
 def test_sample_region_random_transform_snaps_points():
     mock_roi = MagicMock(spec=gpd.GeoDataFrame)
