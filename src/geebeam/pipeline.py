@@ -424,8 +424,7 @@ def grid_and_run_pipeline(
         tile_coverage: Which grid tiles to keep relative to ``sampling_region``.
             'clip' (default): keep a tile only if its sampling point (the patch reference
             point set by ``position``) falls inside the region.
-            'center_clip': keep a tile only if its patch center falls inside the region,
-            regardless of ``position``.
+            'center_clip': keep a tile only if its patch center falls inside the region.
             'intersect': keep any tile whose full ``patch_size`` footprint touches the region,
             guaranteeing gap-free coverage at the edges.
         **kwargs: Additional keyword arguments are documented in :meth:`pipeline.run_pipeline`.
