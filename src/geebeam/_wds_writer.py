@@ -5,6 +5,7 @@ import os
 import uuid
 
 import apache_beam as beam
+import numpy as np
 import webdataset as wds
 from apache_beam.options.pipeline_options import PipelineOptions
 from rasterio.io import MemoryFile
@@ -13,13 +14,13 @@ from rasterio.transform import Affine
 from geebeam import _transforms
 
 
-def _create_tiff_bytes(array_dict, metadata, crs, scale_x, scale_y):
+def _create_tiff_bytes(array_dict, metadata, crs, scale_x, scale_y, output_dtype='float32'):
     """Create TIFF bytes from array dict and metadata."""
     first_band = next(iter(array_dict.values()))
     height, width = first_band.shape
     count = len(array_dict)
-    dtype = first_band.dtype
-    
+    dtype = np.dtype(output_dtype)
+
     transform = Affine(
         scale_x, 0, metadata.get('x_topleft', metadata['x']),
         0, scale_y, metadata.get('y_topleft', metadata['y'])
@@ -38,23 +39,25 @@ def _create_tiff_bytes(array_dict, metadata, crs, scale_x, scale_y):
             compress='lzw'
         ) as dst:
             for i, (band_name, data) in enumerate(array_dict.items(), 1):
-                dst.write(data, i)
+                dst.write(data.astype(dtype), i)
                 dst.set_band_description(i, band_name)
         return memfile.read()
 
 class ProcessToWebDataset(beam.DoFn):
     """DoFn to prepare records for WebDataset output."""
-    def __init__(self, crs, scale_x, scale_y):
+    def __init__(self, crs, scale_x, scale_y, output_dtype='float32'):
         self.crs = crs
         self.scale_x = scale_x
         self.scale_y = scale_y
+        self.output_dtype = output_dtype
 
     def process(self, element):
         metadata = element['metadata']
         array_dict = element['array']
         basename = str(metadata['id']).zfill(5)
-        
-        tif_bytes = _create_tiff_bytes(array_dict, metadata, self.crs, self.scale_x, self.scale_y)
+
+        tif_bytes = _create_tiff_bytes(array_dict, metadata, self.crs, self.scale_x, self.scale_y,
+                                       output_dtype=self.output_dtype)
         
         json_bytes = json.dumps(metadata).encode('utf-8')
         
@@ -118,7 +121,8 @@ def run_webdataset_export(
                 | f'Format {split}' >> beam.ParDo(ProcessToWebDataset(
                     crs=config['crs'],
                     scale_x=scale_x,
-                    scale_y=scale_y
+                    scale_y=scale_y,
+                    output_dtype=config['output_dtype']
                     ))
                 | f'Write {split}' >> beam.ParDo(WriteToWebDataset(output_path, split))
             )

@@ -114,6 +114,7 @@ def run_pipeline(
         crs: str = 'EPSG:4326',
         align_transform: Affine | tuple[float] | list[float] | None = None,
         output_type: str = 'tiff',
+        output_dtype: str = 'float32',
         split_processing: bool = False,
         extra_metadata: dict | None = None,
         beam_options: dict[str] | list[str] | None = None,
@@ -143,6 +144,9 @@ def run_pipeline(
         output_type: 'tiff' (tiffs with parquet for metadata),
             'webdataset' (tiffs with jsons, in sharded tars),
             'tfrecord' (raw tfrecords), or 'tfds' (tensorflow-dataset).
+        output_dtype: dtype for GeoTIFF outputs ('tiff'/'webdataset'). A GeoTIFF uses a single
+            dtype for all bands, so every band is cast to this type. Defaults to 'float32'.
+            Ignored for 'tfrecord'/'tfds' (which store bands as float lists).
         split_processing: Flag to indicate if processing should be split. Defaults to False.
         extra_metadata: Additional metadata to include. Defaults to an empty dictionary.
         beam_options_dict: Options for the Beam pipeline. Defaults to an empty dictionary.
@@ -156,7 +160,8 @@ def run_pipeline(
     """
     import logging
 
-    logger = logging.getLogger(__name__).setLevel(logging.INFO)
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
 
     if isinstance(image_list, ee.ImageCollection):
         raise TypeError(
@@ -188,12 +193,16 @@ def run_pipeline(
     if not extra_metadata:
         extra_metadata = {}
 
+    # Validate output_dtype early (raises TypeError for an unrecognized dtype string)
+    np.dtype(output_dtype)
+
     # Set up configuration dict to pass along
     config = {
         'project_id': project,
         'patch_size': patch_size,
         'scale': scale,
-        'crs': crs
+        'crs': crs,
+        'output_dtype': output_dtype
     }
 
     # Parses from command line and/or retrieves from dict. Note that dict takes precedent.

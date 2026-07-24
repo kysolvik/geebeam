@@ -202,6 +202,19 @@ def test_run_pipeline_requires_scale_or_align():
             sampling_points=MagicMock(),
         )
 
+def test_run_pipeline_invalid_output_dtype():
+    """An unrecognized output_dtype should fail fast via np.dtype."""
+    with pytest.raises(TypeError):
+        run_pipeline(
+            image_list=[MagicMock()],
+            output_path='/tmp/test',
+            project='test-project',
+            patch_size=4,
+            scale=30.0,
+            sampling_points=MagicMock(),
+            output_dtype='not-a-real-dtype',
+        )
+
 def test_run_pipeline_rejects_image_collection():
     """An ee.ImageCollection passed as image_list should raise TypeError."""
     with pytest.raises(TypeError, match='ee.ImageCollection'):
