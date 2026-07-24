@@ -241,9 +241,9 @@ def sample_region_grid(
             'top-left', 'top-right', 'bottom-left', or 'bottom-right'. Only
             matters when ``tile_coverage`` is not 'clip'.
         tile_coverage: Which tiles to keep relative to ``roi``. 'clip' (default)
-            keeps a tile if its sampling point falls inside ``roi``; 'center_clip'
-            keeps a tile if its patch center falls inside ``roi``, regardless of
-            ``position``; 'intersect' keeps a tile if any part of its patch footprint
+            keeps a tile if its sampling point falls inside ``roi``; 
+            'center_clip' keeps a tile if its patch center falls inside ``roi``.;
+            'intersect' keeps a tile if any part of its patch footprint
             touches ``roi``. The latter two require ``patch_size``.
 
     Returns:
