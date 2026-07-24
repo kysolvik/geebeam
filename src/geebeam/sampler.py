@@ -216,7 +216,7 @@ def sample_region_grid(
         buffer_distance: float = 0,
         patch_size: int | None = None,
         position: str = 'center',
-        tile_coverage: str = 'center_clip',
+        tile_coverage: str = 'clip',
         ) -> gpd.GeoDataFrame:
     """Build a regular grid of sampling points covering a region of interest.
 
@@ -240,11 +240,11 @@ def sample_region_grid(
         position: Where each point sits within its patch: 'center' (default),
             'top-left', 'top-right', 'bottom-left', or 'bottom-right'. Only
             matters when ``tile_coverage`` is not 'clip'.
-        tile_coverage: Which tiles to keep relative to ``roi``. 'center_clip' (default)
-            keeps a tile if its patch center falls inside ``roi``,
-            'clip' keeps a tile if its sampling point falls inside ``roi``;
-            'intersect' keeps a tile if any part of its patch footprint
-            touches ``roi``. 'center_clip' and 'intersect' require ``patch_size``.
+        tile_coverage: Which tiles to keep relative to ``roi``. 'clip' (default)
+            keeps a tile if its sampling point falls inside ``roi``; 'center_clip'
+            keeps a tile if its patch center falls inside ``roi``, regardless of
+            ``position``; 'intersect' keeps a tile if any part of its patch footprint
+            touches ``roi``. The latter two require ``patch_size``.
 
     Returns:
         GeoDataFrame of grid point geometries in ``crs``.
