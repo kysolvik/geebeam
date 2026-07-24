@@ -259,7 +259,10 @@ What's next
   Pandas DataFrame, or Earth Engine Feature Collection (but they *must* have
   point geometries). Or use :func:`~geebeam.grid_and_run_pipeline` to sample on a
   regular grid rather than randomly for when you need complete spatial
-  coverage without gaps. See :mod:`~geebeam.sampler`
+  coverage without gaps. By default a grid tile is kept only if its center falls
+  inside the region; pass ``tile_coverage="intersect"`` to instead keep every
+  tile whose footprint touches the region, for gap-free coverage right up to the
+  edges. See :mod:`~geebeam.sampler`
   for more info, including custom dataset splits (e.g. train/val/test).
 - **Split processing of large patches** — Earth Engine limits single request sizes 
   to 50 MB, but geebeam lets you split processing: :doc:`split_processing`
