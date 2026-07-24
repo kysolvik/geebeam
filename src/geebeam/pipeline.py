@@ -70,7 +70,6 @@ def _prepare_run_metadata(config, align_transform=None):
 
     return scale_x, scale_y
 
-
 def _apply_position_offset(input_records, position, patch_size, scale_x, scale_y,
                            align_transform=None):
     """Add x_topleft/y_topleft to each record; original x/y is preserved.
@@ -79,23 +78,7 @@ def _apply_position_offset(input_records, position, patch_size, scale_x, scale_y
     target crs) is provided, each patch's top-left corner is snapped onto that
     transform's pixel grid so the extracted patch aligns exactly.
     """
-    _valid_positions = {'center', 'top-left', 'top-right', 'bottom-left', 'bottom-right'}
-    if position == 'top-left':
-        dx, dy = 0, 0
-    elif position == 'center':
-        dx = -(patch_size / 2) * scale_x
-        dy = -(patch_size / 2) * scale_y
-    elif position == 'top-right':
-        dx = -patch_size * scale_x
-        dy = 0
-    elif position == 'bottom-left':
-        dx = 0
-        dy = -patch_size * scale_y
-    elif position == 'bottom-right':
-        dx = -patch_size * scale_x
-        dy = -patch_size * scale_y
-    else:
-        raise ValueError(f"Invalid position '{position}'. Must be one of: {sorted(_valid_positions)}")
+    dx, dy = sampler._position_offset(position, patch_size, scale_x, scale_y)
     records = [{**r, 'x_topleft': r['x'] + dx, 'y_topleft': r['y'] + dy} for r in input_records]
     if align_transform is not None:
         x0, y0, sx, sy = sampler._parse_transform(align_transform)
@@ -409,6 +392,8 @@ def grid_and_run_pipeline(
         buffer_distance: float = 0,
         validation_ratio: float = 0,
         random_seed: int = 0,
+        position: str = 'center',
+        tile_coverage: str = 'clip',
         **kwargs
         ) -> None:
     """Sample points from regular grid and then run a Beam pipeline to download image chips from Earth Engine.
@@ -433,6 +418,16 @@ def grid_and_run_pipeline(
             Can be used to ensure complete coverage at edges of sampling_region.
         validation_ratio: Fraction of points to mark as validation (can be 0.0).
         random_seed: Seed for random sampling
+        position: Where each sampling point falls within its patch. One of 'center'
+            (default), 'top-left', 'top-right', 'bottom-left', 'bottom-right'. Used
+            for tile_coverage check.
+        tile_coverage: Which grid tiles to keep relative to ``sampling_region``.
+            'clip' (default): keep a tile only if its sampling point (the patch reference
+            point set by ``position``) falls inside the region.
+            'center_clip': keep a tile only if its patch center falls inside the region,
+            regardless of ``position``.
+            'intersect': keep any tile whose full ``patch_size`` footprint touches the region,
+            guaranteeing gap-free coverage at the edges.
         **kwargs: Additional keyword arguments are documented in :meth:`pipeline.run_pipeline`.
     """
 
@@ -446,6 +441,9 @@ def grid_and_run_pipeline(
         scale=scale,
         buffer_distance=buffer_distance,
         align_transform=align_transform,
+        patch_size=patch_size,
+        position=position,
+        tile_coverage=tile_coverage,
     )
 
     if validation_ratio > 0:
@@ -463,4 +461,5 @@ def grid_and_run_pipeline(
         patch_size=patch_size,
         scale=scale,
         align_transform=align_transform,
+        position=position,
         **kwargs)

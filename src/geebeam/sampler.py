@@ -44,6 +44,45 @@ def _snap_to_grid(x, y, x0, y0, scale_x, scale_y):
         return float(xs), float(ys)
     return xs, ys
 
+def _position_offset(position, patch_size, scale_x, scale_y):
+    """Return (dx, dy) from a sampling point to its patch top-left corner.
+
+    ``position`` names where the sampling point sits within the patch; adding the
+    returned offset to the point gives the patch's top-left corner (the translateX/
+    translateY used to extract pixels).
+    """
+    _valid_positions = {'center', 'top-left', 'top-right', 'bottom-left', 'bottom-right'}
+    if position == 'top-left':
+        dx, dy = 0, 0
+    elif position == 'center':
+        dx = -(patch_size / 2) * scale_x
+        dy = -(patch_size / 2) * scale_y
+    elif position == 'top-right':
+        dx = -patch_size * scale_x
+        dy = 0
+    elif position == 'bottom-left':
+        dx = 0
+        dy = -patch_size * scale_y
+    elif position == 'bottom-right':
+        dx = -patch_size * scale_x
+        dy = -patch_size * scale_y
+    else:
+        raise ValueError(f"Invalid position '{position}'. Must be one of: {sorted(_valid_positions)}")
+    return dx, dy
+
+def _pad_locs(locs, step, n):
+    """Extend a 1-D array of grid node coords by ``n`` extra steps on each side.
+
+    The added nodes lie on the same lattice as ``locs`` (same ``step``), so the original
+    nodes keep their exact float values. Used to widen the candidate grid for the
+    'center_clip'/'intersect' selectors without shifting the interior grid.
+    """
+    if n <= 0:
+        return locs
+    left = locs[0] - np.arange(n, 0, -1)*step
+    right = locs[-1] + np.arange(1, n+1)*step
+    return np.concatenate([left, locs, right])
+
 def _get_roi(
     sampling_region: str | ee.Geometry | gpd.GeoDataFrame,
     target_crs: str
@@ -123,12 +162,23 @@ def sample_region_random(
         buffer_distance: float = 0,
         align_transform: Affine | tuple[float] | list[float] | None = None,
         ) -> gpd.GeoDataFrame:
-    """Get random points within region of interest.
+    """Sample random points within a region of interest.
 
-    If align_transform (a rasterio Affine or list/tuple length 6 in the target crs) is provided,
-    the sampled points are snapped onto that transform's pixel grid. Note that snapping to a grid
-    that is coarse relative to the sampling density can collapse distinct random points
-    onto the same location; a warning is emitted if this happens.
+    Args:
+        roi: Region to sample from. May be a path to a vector file (str), an
+            ``ee.Geometry``, a ``shapely`` geometry, or a ``gpd.GeoDataFrame``;
+            a differing CRS is reprojected to ``crs``.
+        crs: Target CRS for the returned points (e.g. 'EPSG:4326').
+        n_sample: Number of random points to sample/draw.
+        random_seed: Seed for reproducible sampling. Defaults to 0.
+        buffer_distance: Distance in meters to buffer ``roi`` before sampling, so
+            points can fall slightly outside the region. Defaults to 0 (no buffer).
+        align_transform: Optional rasterio ``Affine`` or length-6 tuple/list (in
+            ``crs`` units). If given, each point is snapped onto that transform's
+            pixel grid; a warning is emitted if snapping produces duplicate locations.
+
+    Returns:
+        GeoDataFrame of point geometries in ``crs``.
     """
     rng = np.random.default_rng(random_seed)
     roi = _get_roi(roi, crs)
@@ -139,9 +189,9 @@ def sample_region_random(
     sampled_points = gpd.GeoDataFrame(geometry=roi.sample_points(n_sample, rng=rng).geometry.explode(),
                                       crs=crs)
     if align_transform is not None:
-        x0, y0, sx, sy = _parse_transform(align_transform)
+        x0, y0, scale_x, scale_y = _parse_transform(align_transform)
         xs, ys = _snap_to_grid(sampled_points.geometry.x.values,
-                               sampled_points.geometry.y.values, x0, y0, sx, sy)
+                               sampled_points.geometry.y.values, x0, y0, scale_x, scale_y)
         n_unique = np.unique(np.column_stack([xs, ys]), axis=0).shape[0]
         n_collisions = len(xs) - n_unique
         if n_collisions > 0:
@@ -164,27 +214,65 @@ def sample_region_grid(
         scale: float | None = None,
         align_transform: Affine | tuple[float] | list[float] | None = None,
         buffer_distance: float = 0,
+        patch_size: int | None = None,
+        position: str = 'center',
+        tile_coverage: str = 'clip',
         ) -> gpd.GeoDataFrame:
-    """Get a regular grid of points covering region of interest.
+    """Build a regular grid of sampling points covering a region of interest.
 
-    ``scale`` (grid spacing in meters, as scale*stride) is required unless ``align_transform``
-    is provided. If transform (a rasterio Affine or list/tuple in the target crs) is
-    provided, the grid uses that transform's pixel size (``scale`` is ignored) and its origin
-    is anchored to the transform, so every location falls on that transform's pixel grid.
+    Args:
+        roi: Region to sample from. May be a path to a vector file (str), an
+            ``ee.Geometry``, a ``shapely`` geometry, or a ``gpd.GeoDataFrame``;
+            a differing CRS is reprojected to ``crs``.
+        crs: Target CRS for the returned points (e.g. 'EPSG:4326').
+        stride: Spacing between adjacent points, in pixels (the spacing in ``crs``
+            units is ``stride`` times the pixel size).
+        scale: Pixel size / export resolution in meters. Required unless
+            ``align_transform`` is given.
+        align_transform: Optional rasterio ``Affine`` or length-6 tuple/list (in
+            ``crs`` units). If given, the grid uses this transform's pixel size
+            (``scale`` is ignored) and is anchored to its origin, so every point
+            lands on the transform's pixel grid. Defaults to None.
+        buffer_distance: Distance in meters to buffer ``roi`` before gridding, to
+            help ensure coverage at the edges. Defaults to 0 (no buffer).
+        patch_size: Patch size in pixels. Only required when ``tile_coverage`` is not
+            'clip'. Defaults to None.
+        position: Where each point sits within its patch: 'center' (default),
+            'top-left', 'top-right', 'bottom-left', or 'bottom-right'. Only
+            matters when ``tile_coverage`` is not 'clip'.
+        tile_coverage: Which tiles to keep relative to ``roi``. 'clip' (default)
+            keeps a tile if its sampling point falls inside ``roi``; 'center_clip'
+            keeps a tile if its patch center falls inside ``roi``, regardless of
+            ``position``; 'intersect' keeps a tile if any part of its patch footprint
+            touches ``roi``. The latter two require ``patch_size``.
+
+    Returns:
+        GeoDataFrame of grid point geometries in ``crs``.
+
+    Raises:
+        ValueError: If ``tile_coverage`` is invalid, if 'center_clip'/'intersect' is
+            requested without ``patch_size``, or if neither ``scale`` nor
+            ``align_transform`` is provided.
     """
+    if tile_coverage not in ('clip', 'center_clip', 'intersect'):
+        raise ValueError(f"Invalid tile_coverage '{tile_coverage}'. "
+                         "Must be 'clip', 'center_clip', or 'intersect'.")
+    if tile_coverage in ('center_clip', 'intersect') and patch_size is None:
+        raise ValueError(f"tile_coverage='{tile_coverage}' requires patch_size.")
     if align_transform is None and scale is None:
         raise ValueError('`scale` is required unless align_transform is provided.')
     roi = _get_roi(roi, crs)
     if align_transform is not None:
-        x0, y0, sx, sy = _parse_transform(align_transform)
+        x0, y0, scale_x, scale_y = _parse_transform(align_transform)
         if buffer_distance != 0:
             scale_proj_1m = _get_crs_scale(roi.crs.to_string(), 1)
             roi = roi.dissolve().buffer(scale_proj_1m*buffer_distance)
         xmin, ymin, xmax, ymax = roi.total_bounds
-        step_x, step_y = sx*stride, sy*stride
-        # Anchor the grid to the reference transform
-        x_start = x0 + np.floor((xmin - x0)/sx)*sx
-        y_start = y0 + np.floor((ymin - y0)/sy)*sy
+        step_x, step_y = scale_x*stride, scale_y*stride
+
+        # Align the grid to the reference transform
+        x_start = x0 + np.floor((xmin - x0)/scale_x)*scale_x
+        y_start = y0 + np.floor((ymin - y0)/scale_y)*scale_y
         x_locs = np.arange(x_start, xmax+step_x, step_x)
         y_locs = np.arange(y_start, ymax+step_y, step_y)
     else:
@@ -192,16 +280,39 @@ def sample_region_grid(
         if buffer_distance != 0:
             scale_proj_1m = scale_proj/scale
             roi = roi.dissolve().buffer(scale_proj_1m*buffer_distance)
+        scale_x = scale_y = scale_proj
         xmin, ymin, xmax, ymax = roi.total_bounds
-        x_locs = np.arange(xmin, xmax+scale_proj*stride, scale_proj*stride)
-        y_locs = np.arange(ymin, ymax+scale_proj*stride, scale_proj*stride)
+        step_x = step_y = scale_proj*stride
+        x_locs = np.arange(xmin, xmax+step_x, step_x)
+        y_locs = np.arange(ymin, ymax+step_y, step_y)
+
+    if tile_coverage in ('center_clip', 'intersect'):
+        # Pad the candidate grid by a full patch on all sides
+        n_pad = int(np.ceil(patch_size/stride))
+        x_locs = _pad_locs(x_locs, step_x, n_pad)
+        y_locs = _pad_locs(y_locs, step_y, n_pad)
+
     meshgrid = np.array(np.meshgrid(x_locs, y_locs)).T.reshape(-1, 2)
     x_all, y_all = meshgrid[:,0],  meshgrid[:,1]
 
     points_gdf = gpd.GeoDataFrame(geometry=gpd.points_from_xy(x_all, y_all), crs=crs)
 
-    # Clip to region
-    points_gdf = gpd.clip(points_gdf, roi)
+    if tile_coverage == 'clip':
+        # Keep points whose location (the patch reference point) falls inside the region.
+        points_gdf = gpd.clip(points_gdf, roi)
+    else:
+        roi_geom = roi.union_all() if hasattr(roi, 'union_all') else roi.unary_union
+        dx, dy = _position_offset(position, patch_size, scale_x, scale_y)
+        if tile_coverage == 'center_clip':
+            # Keep points whose patch center falls inside the region (position-independent).
+            cx, cy = dx + (patch_size/2)*scale_x, dy + (patch_size/2)*scale_y
+            selectors = gpd.points_from_xy(x_all + cx, y_all + cy)
+        else:  # 'intersect'
+            # Keep points whose full patch footprint touches the region.
+            w, h = patch_size * scale_x, patch_size * scale_y
+            selectors = shapely.box(x_all + dx, y_all + dy, x_all + dx + w, y_all + dy + h)
+        mask = gpd.GeoSeries(selectors, crs=crs).intersects(roi_geom)
+        points_gdf = points_gdf[np.asarray(mask)]
     points_gdf.index = np.arange(points_gdf.shape[0])
 
     return points_gdf
