@@ -5,6 +5,7 @@ import os
 import tempfile
 
 import apache_beam as beam
+import numpy as np
 import pyarrow as pa
 import rasterio
 from apache_beam.io.filesystems import FileSystems
@@ -21,11 +22,12 @@ def _build_tiff_name(id, min_digits=5):
 
 class WriteTiff(beam.DoFn):
     """DoFn to write image arrays to Cloud-Optimized GeoTIFFs."""
-    def __init__(self, output_path, crs, scale_x, scale_y):
+    def __init__(self, output_path, crs, scale_x, scale_y, output_dtype='float32'):
         self.output_path = output_path
         self.crs = crs
         self.scale_x = scale_x
         self.scale_y = scale_y
+        self.dtype = np.dtype(output_dtype)
 
     def setup(self):
         # Ensure the output directory for TIFFs exists
@@ -47,8 +49,8 @@ class WriteTiff(beam.DoFn):
         first_band = next(iter(array_dict.values()))
         height, width = first_band.shape
         count = len(array_dict)
-        dtype = first_band.dtype
-        
+        dtype = self.dtype
+
         # Construct affine transform
         transform = Affine(
             self.scale_x, 0, metadata.get('x_topleft', metadata['x']),
@@ -71,7 +73,7 @@ class WriteTiff(beam.DoFn):
                 compress='lzw'
             ) as dst:
                 for i, (band_name, data) in enumerate(array_dict.items(), 1):
-                    dst.write(data, i)
+                    dst.write(data.astype(dtype), i)
                     dst.set_band_description(i, band_name)
             
             # Upload the temporary file to the final destination
@@ -152,7 +154,8 @@ def run_tiff_export(
                     output_path=output_dir,
                     crs=config['crs'],
                     scale_x=scale_x,
-                    scale_y=scale_y
+                    scale_y=scale_y,
+                    output_dtype=config['output_dtype']
                 ))
             )
         
