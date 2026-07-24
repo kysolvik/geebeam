@@ -262,8 +262,8 @@ What's next
   coverage without gaps. By default a grid tile is kept only if its center falls
   inside the region; pass ``tile_coverage="intersect"`` to instead keep every
   tile whose footprint touches the region, for gap-free coverage right up to the
-  edges. See :mod:`~geebeam.sampler`
-  for more info, including custom dataset splits (e.g. train/val/test).
+  edges. See :mod:`~geebeam.sampler` for more info, including custom
+  dataset splits (e.g. train/val/test).
 - **Split processing of large patches** — Earth Engine limits single request sizes 
   to 50 MB, but geebeam lets you split processing: :doc:`split_processing`
 - **API reference** — full parameter documentation for all three pipeline
