@@ -49,6 +49,7 @@ def test_tiff_pipeline_integration(tmp_path):
         'patch_size': 4,
         'scale': 10.0,
         'crs': 'EPSG:4326',
+        'output_dtype': 'float32'
     }
     serialized_image = '{"type": "Image"}'
     band_groups = [['band1']]
@@ -97,6 +98,7 @@ def test_webdataset_pipeline_integration(tmp_path):
         'patch_size': 4,
         'scale': 10.0,
         'crs': 'EPSG:4326',
+        'output_dtype': 'float32'
     }
     serialized_image = '{"type": "Image"}'
     band_groups = [['band1']]

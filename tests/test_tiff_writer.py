@@ -57,6 +57,38 @@ def test_write_tiff_process_fallback_to_xy(tmp_path):
         assert ds.transform.c == pytest.approx(10.0)
         assert ds.transform.f == pytest.approx(20.0)
 
+def test_write_tiff_heterogeneous_dtypes_not_truncated(tmp_path):
+    """Bands of different native dtypes are cast to output_dtype (default float32) without loss."""
+    writer = WriteTiff(output_path=str(tmp_path), crs='EPSG:4326', scale_x=0.0001, scale_y=-0.0001)
+    writer.setup()
+
+    element = {
+        'metadata': {'id': 8, 'x': 10.0, 'y': 20.0, 'split': 'train'},
+        'array': {
+            'mask_uint8': np.ones((4, 4), dtype=np.uint8),
+            'frac_float64': np.full((4, 4), 0.5, dtype=np.float64),
+        },
+    }
+    writer.process(element)
+
+    with rasterio.open(os.path.join(str(tmp_path), '00008.tif')) as ds:
+        assert ds.dtypes == ('float32', 'float32')
+        assert ds.read(2).min() == 0.5  # float band survives (would be 0 if cast to uint8)
+
+def test_write_tiff_respects_output_dtype(tmp_path):
+    """output_dtype is honored (e.g. float64)."""
+    writer = WriteTiff(output_path=str(tmp_path), crs='EPSG:4326', scale_x=0.0001, scale_y=-0.0001,
+                       output_dtype='float64')
+    writer.setup()
+    element = {
+        'metadata': {'id': 9, 'x': 10.0, 'y': 20.0, 'split': 'train'},
+        'array': {'band1': np.ones((4, 4), dtype=np.uint8)},
+    }
+    writer.process(element)
+
+    with rasterio.open(os.path.join(str(tmp_path), '00009.tif')) as ds:
+        assert ds.dtypes == ('float64',)
+
 def test_process_metadata_to_parquet(tmp_path):
     output_dir = str(tmp_path)
     dofn = ProcessMetadataToParquet(output_path=output_dir)

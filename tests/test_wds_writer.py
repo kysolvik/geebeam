@@ -26,6 +26,24 @@ def test_create_tiff_bytes():
         assert ds.width == 4
         assert ds.height == 4
 
+def test_create_tiff_bytes_heterogeneous_dtypes_not_truncated():
+    """Bands with different native dtypes must be cast to output_dtype without truncation
+    (regression: the writer used to force every band to the first band's dtype)."""
+    array_dict = {
+        'mask_uint8': np.ones((4, 4), dtype=np.uint8),         # first band -> used to win
+        'frac_float64': np.full((4, 4), 0.5, dtype=np.float64),  # would truncate to 0 as uint8
+    }
+    metadata = {'id': 0, 'x': 10.0, 'y': 20.0, 'split': 'train'}
+
+    result = _create_tiff_bytes(array_dict, metadata, 'EPSG:4326', 0.0001, -0.0001,
+                                output_dtype='float32')
+
+    with rasterio.open(io.BytesIO(result)) as ds:
+        assert ds.count == 2
+        assert set(ds.dtypes) == {'float32'}
+        assert ds.read(1).max() == 1.0           # uint8 mask preserved
+        assert ds.read(2).min() == 0.5           # float band NOT truncated to 0
+
 def test_process_to_webdataset():
     crs = 'EPSG:4326'
     scale_x = 0.0001
