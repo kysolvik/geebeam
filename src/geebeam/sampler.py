@@ -24,14 +24,25 @@ def _parse_transform(transform):
     """Return (x0, y0, scale_x, scale_y) from a rasterio Affine or 6-tuple.
 
     The transform is given in Affine order (a, b, c, d, e, f) =
-    (scale_x, shear_x, translate_x, shear_y, scale_y, translate_y). scale_x/scale_y
-    are returned as positive pixel-size magnitudes, matching the existing pipeline
-    convention (scale_y = -transform[4]). Rotation/shear is not supported.
+    (scale_x, shear_x, translate_x, shear_y, scale_y, translate_y). Only north-up
+    transforms are supported, so scale_x is returned positive and scale_y negative,
+    exactly as given. This matches the pipeline convention, where
+    ``scale_y = -proj_dict['transform'][4]`` is negative because Earth Engine reports
+    a positive e (``ee.Projection(crs).atScale(m)`` gives [s, 0, 0, 0, s, 0]).
+    Rotation/shear is not supported.
+
+    Raises:
+        ValueError: If the transform has shear/rotation, a non-positive x pixel size,
+            or a non-negative y pixel size (i.e. a south-up transform).
     """
     a, b, c, d, e, f = tuple(transform)[:6]
     if b != 0 or d != 0:
         raise ValueError('transform must have zero shear/rotation (b and d must be 0).')
-    return c, f, abs(a), abs(e)
+    if e >= 0:
+        raise ValueError('transform only supports negative y res (e must be < 0)')
+    if a <= 0:
+        raise ValueError('transform only supports positive x res (a must be > 0)')
+    return c, f, a, e
 
 def _snap_to_grid(x, y, x0, y0, scale_x, scale_y):
     """Snap coordinate(s) to the nearest node of the reference grid.
@@ -176,6 +187,8 @@ def sample_region_random(
         align_transform: Optional rasterio ``Affine`` or length-6 tuple/list (in
             ``crs`` units). If given, each point is snapped onto that transform's
             pixel grid; a warning is emitted if snapping produces duplicate locations.
+            Must be north-up and unrotated (a > 0, e < 0); other orientations raise
+            ``ValueError``.
 
     Returns:
         GeoDataFrame of point geometries in ``crs``.
@@ -232,7 +245,8 @@ def sample_region_grid(
         align_transform: Optional rasterio ``Affine`` or length-6 tuple/list (in
             ``crs`` units). If given, the grid uses this transform's pixel size
             (``scale`` is ignored) and is anchored to its origin, so every point
-            lands on the transform's pixel grid. Defaults to None.
+            lands on the transform's pixel grid. Must be north-up and unrotated
+            (a > 0, e < 0). Defaults to None.
         buffer_distance: Distance in meters to buffer ``roi`` before gridding, to
             help ensure coverage at the edges. Defaults to 0 (no buffer).
         patch_size: Patch size in pixels. Only required when ``tile_coverage`` is not
@@ -241,7 +255,7 @@ def sample_region_grid(
             'top-left', 'top-right', 'bottom-left', or 'bottom-right'. Only
             matters when ``tile_coverage`` is not 'clip'.
         tile_coverage: Which tiles to keep relative to ``roi``. 'clip' (default)
-            keeps a tile if its sampling point falls inside ``roi``; 
+            keeps a tile if its sampling point falls inside ``roi``;
             'center_clip' keeps a tile if its patch center falls inside ``roi``.;
             'intersect' keeps a tile if any part of its patch footprint
             touches ``roi``. The latter two require ``patch_size``.
@@ -251,8 +265,9 @@ def sample_region_grid(
 
     Raises:
         ValueError: If ``tile_coverage`` is invalid, if 'center_clip'/'intersect' is
-            requested without ``patch_size``, or if neither ``scale`` nor
-            ``align_transform`` is provided.
+            requested without ``patch_size``, if neither ``scale`` nor
+            ``align_transform`` is provided, or if ``align_transform`` is not
+            north-up and unrotated.
     """
     if tile_coverage not in ('clip', 'center_clip', 'intersect'):
         raise ValueError(f"Invalid tile_coverage '{tile_coverage}'. "
@@ -268,11 +283,13 @@ def sample_region_grid(
             scale_proj_1m = _get_crs_scale(roi.crs.to_string(), 1)
             roi = roi.dissolve().buffer(scale_proj_1m*buffer_distance)
         xmin, ymin, xmax, ymax = roi.total_bounds
-        step_x, step_y = scale_x*stride, scale_y*stride
+        # The grid extent only depends on pixel magnitude, so get rid of sign
+        pix_x, pix_y = abs(scale_x), abs(scale_y)
+        step_x, step_y = pix_x*stride, pix_y*stride
 
         # Align the grid to the reference transform
-        x_start = x0 + np.floor((xmin - x0)/scale_x)*scale_x
-        y_start = y0 + np.floor((ymin - y0)/scale_y)*scale_y
+        x_start = x0 + np.floor((xmin - x0)/pix_x)*pix_x
+        y_start = y0 + np.floor((ymin - y0)/pix_y)*pix_y
         x_locs = np.arange(x_start, xmax+step_x, step_x)
         y_locs = np.arange(y_start, ymax+step_y, step_y)
     else:
@@ -280,7 +297,8 @@ def sample_region_grid(
         if buffer_distance != 0:
             scale_proj_1m = scale_proj/scale
             roi = roi.dissolve().buffer(scale_proj_1m*buffer_distance)
-        scale_x = scale_y = scale_proj
+        # scale_y is negative (north-up), matching pipeline._prepare_run_metadata.
+        scale_x, scale_y = scale_proj, -scale_proj
         xmin, ymin, xmax, ymax = roi.total_bounds
         step_x = step_y = scale_proj*stride
         x_locs = np.arange(xmin, xmax+step_x, step_x)
