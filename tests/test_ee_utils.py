@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
+from rasterio.transform import Affine
 
 from geebeam._ee_utils import (
     _dedupe_band_names,
@@ -12,6 +13,7 @@ from geebeam._ee_utils import (
     get_pixels_allbands,
     list_to_im,
 )
+from geebeam.sampler import _parse_transform
 
 
 def test_get_band_names():
@@ -124,6 +126,26 @@ def test_get_pixels_falls_back_to_xy(mock_compute_pixels):
     request = mock_compute_pixels.call_args[0][0]
     assert request['grid']['affineTransform']['translateX'] == 10.0
     assert request['grid']['affineTransform']['translateY'] == 20.0
+
+@patch('ee.data.computePixels')
+def test_get_pixels_scaley_negative_from_align_transform(mock_compute_pixels):
+    """The negative (north-up) y res must survive from _parse_transform into the EE request.
+
+    An abs() in _parse_transform used to make scaleY positive here, so EE returned rows
+    bottom-up and the written patches were south-up.
+    """
+    patch_size = 4
+    mock_compute_pixels.return_value = _make_npy_bytes(patch_size=patch_size, band_name='band1')
+
+    _, _, scale_x, scale_y = _parse_transform(Affine(30.0, 0, 500000.0, 0, -30.0, 4500000.0))
+    point = {'id': 0, 'x': 500000.0, 'y': 4500000.0}
+    get_pixels(MagicMock(), point, patch_size, scale_x=scale_x, scale_y=scale_y,
+               crs_code='EPSG:32610')
+
+    affine = mock_compute_pixels.call_args[0][0]['grid']['affineTransform']
+    assert affine['scaleX'] > 0
+    assert affine['scaleY'] < 0
+    assert affine['scaleY'] == -30.0
 
 @patch('ee.data.computePixels')
 def test_get_pixels_empty_response(mock_compute_pixels):

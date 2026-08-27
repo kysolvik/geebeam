@@ -61,14 +61,16 @@ def _prepare_run_metadata(config, align_transform=None):
         # Pixel size comes from the alignment transform (overrides config['scale'])
         _, _, scale_x, scale_y = sampler._parse_transform(align_transform)
         return scale_x, scale_y
+    else:
+        proj = ee.Projection(config['crs']).atScale(config['scale'])
+        proj_dict = proj.getInfo()
 
-    proj = ee.Projection(config['crs']).atScale(config['scale'])
-    proj_dict = proj.getInfo()
+        # EE reports a *positive* e (atScale gives [s, 0, 0, 0, s, 0]), so negating it yields
+        # the negative (north-up) scale_y that is standard in gdal/rasterio/etc.
+        scale_x = proj_dict['transform'][0]
+        scale_y = -proj_dict['transform'][4]
 
-    scale_x = proj_dict['transform'][0]
-    scale_y = -proj_dict['transform'][4]
-
-    return scale_x, scale_y
+        return scale_x, scale_y
 
 def _apply_position_offset(input_records, position, patch_size, scale_x, scale_y,
                            align_transform=None):
@@ -121,8 +123,9 @@ def run_pipeline(
             list/tuple (length 6) ``(a, b, c, d, e, f)`` in ``crs`` units) to align patches
             to. When provided, the pixel size is taken from the transform and ``scale`` is
             ignored (a warning is emitted), and each patch's top-left corner is snapped onto
-            the transform's pixel grid, so the extracted patch aligns exactly to that grid 
-            with no resampling. Rotation/shear (non-zero ``b``/``d``) is not supported.
+            the transform's pixel grid, so the extracted patch aligns exactly to that grid
+            with no resampling. Must be north-up and unrotated: ``a > 0``, ``e < 0``, and
+            zero shear (``b``/``d``). Other orientations raise ``ValueError``.
             Defaults to None.
         output_type: 'tiff' (tiffs with parquet for metadata),
             'webdataset' (tiffs with jsons, in sharded tars),

@@ -3,8 +3,10 @@ import os
 import numpy as np
 import pytest
 import rasterio
+from rasterio.transform import Affine
 
 from geebeam._tiff_writer import ProcessMetadataToParquet, WriteTiff, _build_tiff_name
+from geebeam.sampler import _parse_transform
 
 
 def test_build_tiff_name():
@@ -40,6 +42,29 @@ def test_write_tiff_process(tmp_path):
         assert ds.height == 4
         assert ds.transform.c == pytest.approx(5.0)   # translateX = x_topleft
         assert ds.transform.f == pytest.approx(15.0)  # translateY = y_topleft
+
+def test_write_tiff_north_up_from_align_transform(tmp_path):
+    """The user-visible symptom: a GeoTIFF written from an align_transform is north-up.
+
+    _parse_transform used to return abs(e), so the written transform had a positive e and
+    the raster came out upside down (bounds.top < bounds.bottom).
+    """
+    align = Affine(0.0001, 0, 5.0, 0, -0.0001, 15.0)
+    _, _, scale_x, scale_y = _parse_transform(align)
+
+    writer = WriteTiff(output_path=str(tmp_path), crs='EPSG:4326',
+                       scale_x=scale_x, scale_y=scale_y)
+    writer.setup()
+    writer.process({
+        'metadata': {'id': 3, 'x': 5.0, 'y': 15.0, 'x_topleft': 5.0, 'y_topleft': 15.0},
+        'array': {'band1': np.ones((4, 4), dtype=np.float32)},
+    })
+
+    with rasterio.open(os.path.join(str(tmp_path), '00003.tif')) as ds:
+        assert ds.transform.e < 0
+        assert ds.transform.a > 0
+        assert ds.bounds.top == pytest.approx(15.0)  # y_topleft is the *top* edge
+        assert ds.bounds.top > ds.bounds.bottom
 
 def test_write_tiff_process_fallback_to_xy(tmp_path):
     """WriteTiff falls back to x/y for the geotransform when x_topleft/y_topleft are absent."""

@@ -7,6 +7,7 @@ import pytest
 from rasterio.transform import Affine
 from shapely.geometry import box
 
+from geebeam.pipeline import _apply_position_offset
 from geebeam.sampler import (
     _get_roi,
     _parse_transform,
@@ -166,14 +167,31 @@ def test_parse_transform_affine_and_tuple_match():
     assert _parse_transform(affine) == _parse_transform(tup)
     x0, y0, sx, sy = _parse_transform(affine)
     assert (x0, y0) == (500000.0, 4500000.0)
-    # scale_x/scale_y are positive magnitudes (matches scale_y = -transform[4] convention)
-    assert (sx, sy) == (30.0, 30.0)
+    # Returned signed, north-up: positive x res, negative y res (matches the pipeline's
+    # scale_y = -proj_dict['transform'][4], which is negative because EE reports e > 0)
+    assert (sx, sy) == (30.0, -30.0)
 
 def test_parse_transform_rejects_shear():
     with pytest.raises(ValueError, match='shear'):
         _parse_transform((30.0, 0.1, 0.0, 0.0, -30.0, 0.0))
     with pytest.raises(ValueError, match='shear'):
         _parse_transform((30.0, 0.0, 0.0, 0.2, -30.0, 0.0))
+
+def test_parse_transform_rejects_positive_yres():
+    """A south-up transform must raise rather than be silently flipped to north-up."""
+    with pytest.raises(ValueError, match='y res'):
+        _parse_transform((30.0, 0.0, 0.0, 0.0, 30.0, 0.0))
+
+def test_parse_transform_rejects_negative_xres():
+    with pytest.raises(ValueError, match='x res'):
+        _parse_transform((-30.0, 0.0, 0.0, 0.0, -30.0, 0.0))
+
+def test_parse_transform_rejects_zero_scale():
+    """A zero pixel size would divide by zero downstream in _snap_to_grid."""
+    with pytest.raises(ValueError, match='y res'):
+        _parse_transform((30.0, 0.0, 0.0, 0.0, 0.0, 0.0))
+    with pytest.raises(ValueError, match='x res'):
+        _parse_transform((0.0, 0.0, 0.0, 0.0, -30.0, 0.0))
 
 def test_snap_to_grid_scalar():
     # origin (0, 0), pixel size 5 -> nearest multiple of 5
@@ -189,6 +207,19 @@ def test_snap_to_grid_array_and_offset_origin():
     # nodes must satisfy (v - origin) / pixel == integer
     assert np.allclose((xs_snap - 1.0) / 5.0, np.round((xs_snap - 1.0) / 5.0))
     assert np.allclose((ys_snap - 1.0) / 5.0, np.round((ys_snap - 1.0) / 5.0))
+
+def test_snap_to_grid_sign_invariant():
+    """Snapping only depends on pixel magnitude, so the sign of scale_y must not matter.
+
+    np.round is round-half-to-even, which is symmetric about zero, so
+    round(-u)*(-s) == round(u)*s. Pinned so nobody "fixes" _snap_to_grid for signed input.
+    """
+    xs = np.array([12.3, 27.6, -7.5, 2.5, 0.0])
+    ys = np.array([51.1, 63.9, -2.5, 7.5, 1.0])
+    pos_x, pos_y = _snap_to_grid(xs, ys, 1.0, 1.0, 5.0, 5.0)
+    neg_x, neg_y = _snap_to_grid(xs, ys, 1.0, 1.0, 5.0, -5.0)
+    assert np.array_equal(pos_x, neg_x)
+    assert np.array_equal(pos_y, neg_y)
 
 def test_sample_region_grid_transform():
     roi_gdf = gpd.GeoDataFrame(geometry=[box(0.0, 0.0, 1.0, 1.0)], crs='EPSG:4326')
@@ -211,6 +242,59 @@ def test_sample_region_grid_align_no_scale():
     assert len(result) > 0
     kx = (result.geometry.x.values - 0.05) / 0.1
     assert np.allclose(kx, np.round(kx))
+
+def test_sample_region_grid_align_covers_roi():
+    """Regression: the align branch must produce a full grid, not an empty/truncated one.
+
+    Returning a signed (negative) scale_y made step_y negative, so
+    np.arange(y_start, ymax+step_y, step_y) came back empty and the grid had zero points.
+    """
+    roi_gdf = gpd.GeoDataFrame(geometry=[box(0.0, 0.0, 1.0, 1.0)], crs='EPSG:4326')
+    # origin (0.05, 0.05), pixel size 0.1 -> nodes inside the ROI are 0.05, 0.15, ..., 0.95
+    align = Affine(0.1, 0, 0.05, 0, -0.1, 0.05)
+    result = sample_region_grid(roi=roi_gdf, crs='EPSG:4326', stride=1, align_transform=align)
+    assert len(result) == 100  # 10 x 10
+    # A grid truncated at either end would still have points, so pin the extent too.
+    assert result.geometry.y.min() == pytest.approx(0.05)
+    assert result.geometry.y.max() == pytest.approx(0.95)
+    assert result.geometry.x.min() == pytest.approx(0.05)
+    assert result.geometry.x.max() == pytest.approx(0.95)
+
+@pytest.mark.parametrize('tile_coverage', ['center_clip', 'intersect'])
+@pytest.mark.parametrize('position', ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'center'])
+def test_grid_selection_matches_pipeline_patch(position, tile_coverage):
+    """Every tile the sampler keeps must satisfy tile_coverage for the patch the pipeline
+    actually extracts.
+
+    The sampler and the pipeline each decide independently which way a patch grows in y.
+    They disagreed on the scale= branch: sample_region_grid used a positive scale_y, so it
+    selected on a footprint growing *up* from the anchor while the pipeline extracts *down*.
+    Nothing here assumes the sampler's internal sign -- the footprint is rebuilt from the
+    pipeline's own x_topleft/y_topleft.
+
+    Uses a distance tolerance rather than .intersects() because a footprint can be exactly
+    tangent to the ROI edge, where the predicate turns on ~1e-16 of float noise. A mirrored
+    footprint is off by a full patch (0.2 here), so the tolerance costs no sensitivity.
+    """
+    roi_gdf = gpd.GeoDataFrame(geometry=[box(0.0, 0.0, 1.0, 1.0)], crs='EPSG:4326')
+    roi_geom = roi_gdf.union_all()
+    patch_size, scale_proj = 2, 0.1
+    with patch('geebeam.sampler._get_crs_scale', return_value=scale_proj):
+        pts = sample_region_grid(roi=roi_gdf, crs='EPSG:4326', stride=1, scale=1000.0,
+                                 patch_size=patch_size, position=position,
+                                 tile_coverage=tile_coverage)
+    assert len(pts) > 0
+
+    # The pipeline's convention, straight from _prepare_run_metadata (-transform[4] < 0)
+    scale_x, scale_y = scale_proj, -scale_proj
+    records = [{'id': i, 'x': p.x, 'y': p.y} for i, p in enumerate(pts.geometry)]
+    for rec in _apply_position_offset(records, position, patch_size, scale_x, scale_y):
+        # The patch EE returns and the writers georeference: top-left corner, growing
+        # right in x and down in y.
+        extracted = box(rec['x_topleft'], rec['y_topleft'] + patch_size*scale_y,
+                        rec['x_topleft'] + patch_size*scale_x, rec['y_topleft'])
+        probe = extracted if tile_coverage == 'intersect' else extracted.centroid
+        assert probe.distance(roi_geom) < 1e-9
 
 def test_sample_region_grid_requires_scale():
     """Without transform, scale is required."""
@@ -257,10 +341,11 @@ def test_sample_region_grid_intersect_position():
                                     patch_size=2, tile_coverage='intersect', position='center')
         top_left = sample_region_grid(roi=roi_gdf, crs='EPSG:4326', stride=1, scale=1000.0,
                                       patch_size=2, tile_coverage='intersect', position='top-left')
-    # For 'top-left' the patch extends up/right of the anchor, so retained anchors
-    # sit further toward the lower-left than for 'center'.
+    # North-up: for 'top-left' the patch extends down/right of the anchor, so retained
+    # anchors sit further toward the upper-left than for 'center'.
+    # (roi y in [0,1], patch height 0.2: 'top-left' keeps y in [0, 1.2], 'center' [-0.1, 1.1])
     assert top_left.geometry.x.mean() < center.geometry.x.mean()
-    assert top_left.geometry.y.mean() < center.geometry.y.mean()
+    assert top_left.geometry.y.mean() > center.geometry.y.mean()
 
 def test_sample_region_grid_center_clip_matches_clip_for_center_position():
     """With position='center' the sampling point is the patch center, so
@@ -295,10 +380,10 @@ def test_sample_region_grid_center_clip_position_aware():
                                     patch_size=2, tile_coverage='center_clip', position='center')
         top_left = sample_region_grid(roi=roi_gdf, crs='EPSG:4326', stride=1, scale=1000.0,
                                       patch_size=2, tile_coverage='center_clip', position='top-left')
-    # 'top-left' places the patch up/right of the anchor, so anchors whose *center* lands
-    # in the ROI sit further toward the lower-left than for 'center'.
+    # North-up: 'top-left' places the patch down/right of the anchor, so anchors whose
+    # *center* lands in the ROI sit further toward the upper-left than for 'center'.
     assert top_left.geometry.x.mean() < center.geometry.x.mean()
-    assert top_left.geometry.y.mean() < center.geometry.y.mean()
+    assert top_left.geometry.y.mean() > center.geometry.y.mean()
 
 def test_sample_region_grid_center_clip_requires_patch_size():
     roi_gdf = gpd.GeoDataFrame(geometry=[box(0.0, 0.0, 1.0, 1.0)], crs='EPSG:4326')
@@ -307,14 +392,17 @@ def test_sample_region_grid_center_clip_requires_patch_size():
                             tile_coverage='center_clip')
 
 def test_position_offset():
-    # center: anchor is half a patch in from the top-left corner
-    assert _position_offset('center', 4, 0.5, 0.5) == (-1.0, -1.0)
+    """scale_y is negative (north-up), so the top-left corner is always at y >= anchor."""
+    # center: anchor is half a patch in from the top-left corner (left and *below* it)
+    assert _position_offset('center', 4, 0.5, -0.5) == (-1.0, 1.0)
     # top-left: anchor is the corner, no offset
-    assert _position_offset('top-left', 4, 0.5, 0.5) == (0, 0)
-    # bottom-right: corner is a full patch back in both directions
-    assert _position_offset('bottom-right', 4, 0.5, 0.5) == (-2.0, -2.0)
+    assert _position_offset('top-left', 4, 0.5, -0.5) == (0, 0)
+    # bottom-left: corner is a full patch *above* the anchor
+    assert _position_offset('bottom-left', 4, 0.5, -0.5) == (0, 2.0)
+    # bottom-right: corner is a full patch back in x and up in y
+    assert _position_offset('bottom-right', 4, 0.5, -0.5) == (-2.0, 2.0)
     with pytest.raises(ValueError, match='Invalid position'):
-        _position_offset('middle', 4, 0.5, 0.5)
+        _position_offset('middle', 4, 0.5, -0.5)
 
 def test_sample_region_random_transform_snaps_points():
     mock_roi = MagicMock(spec=gpd.GeoDataFrame)

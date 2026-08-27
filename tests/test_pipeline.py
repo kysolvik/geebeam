@@ -26,15 +26,19 @@ def test_prepare_run_metadata(mock_projection, mock_ee_init):
     }
 
     mock_proj_obj = MagicMock()
+    # EE reports a positive e -- verified against the live API:
+    # ee.Projection('EPSG:4326').atScale(30).getInfo()['transform']
+    #   -> [0.00026949458523585647, 0, 0, 0, 0.00026949458523585647, 0]
     mock_proj_obj.getInfo.return_value = {
-        'transform': [30.0, 0, 100, 0, -30.0, 200]
+        'transform': [30.0, 0, 100, 0, 30.0, 200]
     }
     mock_projection.return_value.atScale.return_value = mock_proj_obj
 
     scale_x, scale_y = _prepare_run_metadata(config)
 
     assert scale_x == 30.0
-    assert scale_y == 30.0 # -(-30.0) in code: scale_y = -proj_dict['transform'][4]
+    # scale_y = -proj_dict['transform'][4] -> negative, i.e. north-up
+    assert scale_y == -30.0
 
 def test_local_runner_check():
     assert _check_if_localrunner(PipelineOptions())
@@ -89,7 +93,7 @@ def test_build_md_feature_dict_invalid_type():
 
 PATCH_SIZE = 10
 SCALE_X = 0.001
-SCALE_Y = 0.001
+SCALE_Y = -0.001  # north-up: y decreases down the patch
 # Top-left corner of a known patch
 X0, Y0 = 10.0, 20.0
 
@@ -122,6 +126,20 @@ def test_apply_position_offset_preserves_original_xy(position):
     assert result[0]['x'] == original_x
     assert result[0]['y'] == original_y
 
+@pytest.mark.parametrize('position', ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'center'])
+def test_apply_position_offset_topleft_is_north_up(position):
+    """The top-left corner is never right of, nor below, the sampling point.
+
+    This is the invariant the positive-yres bug violated: with a positive scale_y the
+    patch grew upward from y_topleft, producing south-up output.
+    """
+    records = _records_at_position(position)
+    x, y = records[0]['x'], records[0]['y']
+    result = _apply_position_offset(records, position, PATCH_SIZE, SCALE_X, SCALE_Y)
+    assert result[0]['x_topleft'] <= x
+    assert result[0]['y_topleft'] >= y
+
+
 def test_apply_position_offset_invalid_position():
     records = [{'id': 0, 'x': 1.0, 'y': 2.0}]
     with pytest.raises(ValueError, match='Invalid position'):
@@ -135,7 +153,7 @@ def test_apply_position_offset_align_snaps_topleft(position, patch_size):
     # origin (0, 0), pixel size 1.0 -> grid nodes are integers
     align = Affine(1.0, 0, 0.0, 0, -1.0, 0.0)
     records = [{'id': 0, 'x': 3.37, 'y': 8.62, 'split': 'full'}]
-    result = _apply_position_offset(records, position, patch_size, 1.0, 1.0,
+    result = _apply_position_offset(records, position, patch_size, 1.0, -1.0,
                                     align_transform=align)
     x_tl, y_tl = result[0]['x_topleft'], result[0]['y_topleft']
     assert x_tl == round(x_tl)
@@ -154,8 +172,30 @@ def test_prepare_run_metadata_align_overrides_scale(mock_projection, mock_ee_ini
     scale_x, scale_y = _prepare_run_metadata(config, align_transform=align)
 
     assert scale_x == 0.25
-    assert scale_y == 0.5  # abs(-0.5)
+    assert scale_y == -0.5  # returned signed, not as a magnitude
     mock_projection.assert_not_called()
+
+@patch('ee.Initialize')
+@patch('ee.Projection')
+def test_prepare_run_metadata_paths_agree_in_sign(mock_projection, mock_ee_init):
+    """The `scale=` and `align_transform=` branches must return the same sign convention.
+
+    They disagreed before the fix (align returned a positive scale_y), which is what made
+    align_transform runs come out south-up.
+    """
+    config = {'project_id': 'test-project', 'crs': 'EPSG:4326', 'scale': 30}
+    mock_proj_obj = MagicMock()
+    mock_proj_obj.getInfo.return_value = {'transform': [30.0, 0, 0, 0, 30.0, 0]}
+    mock_projection.return_value.atScale.return_value = mock_proj_obj
+
+    scale_sx, scale_sy = _prepare_run_metadata(config)
+    align_sx, align_sy = _prepare_run_metadata(
+        config, align_transform=Affine(30.0, 0, 100.0, 0, -30.0, 200.0))
+
+    assert scale_sx > 0 and align_sx > 0
+    assert scale_sy < 0 and align_sy < 0
+    assert (scale_sx, scale_sy) == (align_sx, align_sy)
+
 
 @patch('ee.Initialize')
 @patch('ee.Projection')
