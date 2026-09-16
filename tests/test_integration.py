@@ -49,6 +49,7 @@ def test_tiff_pipeline_integration(tmp_path):
         'patch_size': 4,
         'scale': 10.0,
         'crs': 'EPSG:4326',
+        'crs_pyproj': 'EPSG:4326',
         'output_dtype': 'float32'
     }
     serialized_image = '{"type": "Image"}'
@@ -98,6 +99,7 @@ def test_webdataset_pipeline_integration(tmp_path):
         'patch_size': 4,
         'scale': 10.0,
         'crs': 'EPSG:4326',
+        'crs_pyproj': 'EPSG:4326',
         'output_dtype': 'float32'
     }
     serialized_image = '{"type": "Image"}'
@@ -139,6 +141,7 @@ def test_tfrecord_pipeline_integration(tmp_path):
         'patch_size': 4,
         'scale': 10.0,
         'crs': 'EPSG:4326',
+        'crs_pyproj': 'EPSG:4326',
     }
     md_feature_dict = {'id': 'int', 'x': 'float', 'y': 'float', 'split': 'str'}
 
