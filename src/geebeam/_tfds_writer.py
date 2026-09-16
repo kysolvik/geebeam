@@ -181,7 +181,7 @@ def run_tfds_export(
         serialized_image=serialized_image,
         band_groups=band_groups,
         all_bands=all_bands,
-        crs=config['crs'],
+        crs=config['crs_pyproj'],
         scale_x=scale_x,
         scale_y=scale_y,
         patch_size=config['patch_size'],

@@ -119,7 +119,7 @@ def run_webdataset_export(
                 | f'Filter {split}' >> beam.Filter(lambda record, s=split: record['metadata']['split'] == s)
                 | f'Reshuffle {split}' >> beam.Reshuffle()
                 | f'Format {split}' >> beam.ParDo(ProcessToWebDataset(
-                    crs=config['crs'],
+                    crs=config['crs_pyproj'],
                     scale_x=scale_x,
                     scale_y=scale_y,
                     output_dtype=config['output_dtype']

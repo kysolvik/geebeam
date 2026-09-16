@@ -152,7 +152,7 @@ def run_tiff_export(
                 | f'Reshuffle {split}' >> beam.Reshuffle()
                 | f'Write {split} TIFFs' >> beam.ParDo(WriteTiff(
                     output_path=output_dir,
-                    crs=config['crs'],
+                    crs=config['crs_pyproj'],
                     scale_x=scale_x,
                     scale_y=scale_y,
                     output_dtype=config['output_dtype']
