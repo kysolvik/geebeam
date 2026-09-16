@@ -10,6 +10,7 @@ from apache_beam.options.pipeline_options import PipelineOptions
 from rasterio import Affine
 
 from geebeam import _ee_utils, _transforms, sampler
+from geebeam._crs_utils import to_pyproj_crs
 
 
 def _check_if_localrunner(pipeline_options):
@@ -188,6 +189,9 @@ def run_pipeline(
         'patch_size': patch_size,
         'scale': scale,
         'crs': crs,
+        # Resolved once for pyproj/rasterio consumers (geopandas ops, GeoTIFF
+        # writers); EE-side calls keep the original 'crs' code.
+        'crs_pyproj': to_pyproj_crs(crs),
         'output_dtype': output_dtype
     }
 
@@ -213,7 +217,8 @@ def run_pipeline(
             )
 
     # Get sample points
-    input_records, splits = sampler._process_sampling_points(sampling_points, target_crs=config['crs'])
+    input_records, splits = sampler._process_sampling_points(sampling_points,
+                                                             target_crs=config['crs_pyproj'])
 
     # Pre-run info:
     scale_x, scale_y = _prepare_run_metadata(config, align_transform)
