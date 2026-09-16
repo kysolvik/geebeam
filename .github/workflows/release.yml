@@ -4,6 +4,11 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref (tag/branch/SHA) to build and publish. Leave empty to use the triggering ref."
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -13,19 +18,21 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
 
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: "3.11"
 
-      - name: Upgrade pip, install Hatch, and check Hatch version
+      - name: Upgrade pip and install build
         run: |
           pip install --upgrade pip
-          pip install --upgrade hatch
-          hatch --version # Verify that Hatch is installed
+          pip install --upgrade build
       - name: Build artifacts
-        run: hatch build
+        run: python -m build
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           path: dist/
