@@ -4,7 +4,7 @@ import ee
 import pyproj
 
 # EE-only codes (spatialreference.org SR-ORG / etc.) that PROJ cannot resolve,
-# mapped to an equivalent WKT string. Extend as new codes are encountered.
+# mapped to an equivalent WKT string. Can extend as new codes are encountered.
 _EE_CRS_WKT = {
     'SR-ORG:6974': (  # MODIS sinusoidal
         'PROJCS["MODIS Sinusoidal",'
