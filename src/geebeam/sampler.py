@@ -8,8 +8,11 @@ import ee
 import geopandas as gpd
 import numpy as np
 import pandas as pd
+import pyproj
 import shapely
 from rasterio import Affine
+
+from geebeam._crs_utils import to_pyproj_crs
 
 
 def _get_crs_scale(
@@ -100,6 +103,7 @@ def _get_roi(
     ) -> gpd.GeoDataFrame:
 
     if sampling_region is not None:
+        target_crs = to_pyproj_crs(target_crs)
         if isinstance(sampling_region, gpd.GeoDataFrame):
             roi_df = sampling_region
         elif isinstance(sampling_region, str):
@@ -113,7 +117,7 @@ def _get_roi(
             raise TypeError("'sampling_region' must be one of"
                             "[str, ee.Geometry, gpd.GeoDataFrame]")
         source_crs = roi_df.crs.to_string()
-        if source_crs != target_crs:
+        if pyproj.CRS(source_crs) != pyproj.CRS(target_crs):
             warnings.warn(f'Converting ROI from crs {source_crs} to target_crs: {target_crs}')
             roi_df = roi_df.to_crs(target_crs)
         return roi_df
@@ -123,8 +127,10 @@ def _process_sampling_points(
         target_crs: str
         ) -> gpd.GeoDataFrame:
 
+    target_crs = to_pyproj_crs(target_crs)
+
     if isinstance(sampling_points, gpd.GeoDataFrame):
-        if sampling_points.crs != target_crs:
+        if pyproj.CRS(sampling_points.crs) != pyproj.CRS(target_crs):
             raise ValueError('sampling_points projection does not match target_crs.')
         points_gdf = sampling_points
 
@@ -194,13 +200,14 @@ def sample_region_random(
         GeoDataFrame of point geometries in ``crs``.
     """
     rng = np.random.default_rng(random_seed)
+    pyproj_crs = to_pyproj_crs(crs)
     roi = _get_roi(roi, crs)
     if buffer_distance != 0:
-        scale_proj_1m = _get_crs_scale(roi.crs.to_string(), 1)
+        scale_proj_1m = _get_crs_scale(crs, 1)
         roi = roi.dissolve().buffer(scale_proj_1m*buffer_distance)
 
     sampled_points = gpd.GeoDataFrame(geometry=roi.sample_points(n_sample, rng=rng).geometry.explode(),
-                                      crs=crs)
+                                      crs=pyproj_crs)
     if align_transform is not None:
         x0, y0, scale_x, scale_y = _parse_transform(align_transform)
         xs, ys = _snap_to_grid(sampled_points.geometry.x.values,
@@ -216,7 +223,7 @@ def sample_region_random(
                 UserWarning,
                 stacklevel=2
             )
-        sampled_points = gpd.GeoDataFrame(geometry=gpd.points_from_xy(xs, ys), crs=crs)
+        sampled_points = gpd.GeoDataFrame(geometry=gpd.points_from_xy(xs, ys), crs=pyproj_crs)
     sampled_points.index = np.arange(sampled_points.shape[0])
     return sampled_points
 
@@ -276,11 +283,12 @@ def sample_region_grid(
         raise ValueError(f"tile_coverage='{tile_coverage}' requires patch_size.")
     if align_transform is None and scale is None:
         raise ValueError('`scale` is required unless align_transform is provided.')
+    pyproj_crs = to_pyproj_crs(crs)
     roi = _get_roi(roi, crs)
     if align_transform is not None:
         x0, y0, scale_x, scale_y = _parse_transform(align_transform)
         if buffer_distance != 0:
-            scale_proj_1m = _get_crs_scale(roi.crs.to_string(), 1)
+            scale_proj_1m = _get_crs_scale(crs, 1)
             roi = roi.dissolve().buffer(scale_proj_1m*buffer_distance)
         xmin, ymin, xmax, ymax = roi.total_bounds
         # The grid extent only depends on pixel magnitude, so get rid of sign
@@ -293,7 +301,7 @@ def sample_region_grid(
         x_locs = np.arange(x_start, xmax+step_x, step_x)
         y_locs = np.arange(y_start, ymax+step_y, step_y)
     else:
-        scale_proj = _get_crs_scale(roi.crs.to_string(), scale)
+        scale_proj = _get_crs_scale(crs, scale)
         if buffer_distance != 0:
             scale_proj_1m = scale_proj/scale
             roi = roi.dissolve().buffer(scale_proj_1m*buffer_distance)
@@ -313,7 +321,7 @@ def sample_region_grid(
     meshgrid = np.array(np.meshgrid(x_locs, y_locs)).T.reshape(-1, 2)
     x_all, y_all = meshgrid[:,0],  meshgrid[:,1]
 
-    points_gdf = gpd.GeoDataFrame(geometry=gpd.points_from_xy(x_all, y_all), crs=crs)
+    points_gdf = gpd.GeoDataFrame(geometry=gpd.points_from_xy(x_all, y_all), crs=pyproj_crs)
 
     if tile_coverage == 'clip':
         # Keep points whose location (the patch reference point) falls inside the region.
@@ -329,7 +337,7 @@ def sample_region_grid(
             # Keep points whose full patch footprint touches the region.
             w, h = patch_size * scale_x, patch_size * scale_y
             selectors = shapely.box(x_all + dx, y_all + dy, x_all + dx + w, y_all + dy + h)
-        mask = gpd.GeoSeries(selectors, crs=crs).intersects(roi_geom)
+        mask = gpd.GeoSeries(selectors, crs=pyproj_crs).intersects(roi_geom)
         points_gdf = points_gdf[np.asarray(mask)]
     points_gdf.index = np.arange(points_gdf.shape[0])
 

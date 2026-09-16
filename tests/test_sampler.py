@@ -113,6 +113,18 @@ def test_get_roi_invalid():
     with pytest.raises(TypeError):
         _get_roi(12345, 'EPSG:4326')
 
+def test_get_roi_ee_custom_crs():
+    # An EE-only output CRS (SR-ORG:6974, MODIS sinusoidal) must be resolved via
+    # the lookup table so geopandas can reproject the ROI without raising.
+    gdf = gpd.GeoDataFrame(
+        geometry=[box(0, 0, 1, 1)],
+        crs='EPSG:4326'
+    )
+    result = _get_roi(gdf, 'SR-ORG:6974')
+    assert isinstance(result, gpd.GeoDataFrame)
+    assert result.crs.is_projected
+    assert result.crs.to_dict().get('proj') == 'sinu'
+
 def test_sample_region_grid():
     roi_gdf = gpd.GeoDataFrame(
         geometry=[box(0.0, 0.0, 1.0, 1.0)],
