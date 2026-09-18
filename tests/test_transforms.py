@@ -31,6 +31,7 @@ def test_ee_compute_patch(mock_from_json, mock_compute_pixels, mock_ee_init):
 
     config = {
         'project_id': 'test-project',
+        'ee_project': 'test-ee-project',
         'patch_size': 2,
         'crs': 'EPSG:4326'
     }
@@ -65,6 +66,11 @@ def test_ee_compute_patch(mock_from_json, mock_compute_pixels, mock_ee_init):
     assert 'array' in result
     assert 'b1' in result['array']
     assert result['array']['b1'].shape == (1, 2, 2)
+
+    # Earth Engine must be initialized against ee_project (EECU quota), not
+    # project_id (Dataflow compute).
+    mock_ee_init.assert_called_once()
+    assert mock_ee_init.call_args.kwargs['project'] == 'test-ee-project'
 
 def test_convert_to_iterable_list():
     val = [1, 2, 3]
