@@ -21,7 +21,6 @@ from geebeam.pipeline import (
 def test_prepare_run_metadata(mock_projection, mock_ee_init):
     config = {
         'project_id': 'test-project',
-        'ee_project': 'test-project',
         'crs': 'EPSG:4326',
         'scale': 30
     }
@@ -167,8 +166,7 @@ def test_apply_position_offset_align_snaps_topleft(position, patch_size):
 @patch('ee.Projection')
 def test_prepare_run_metadata_align_overrides_scale(mock_projection, mock_ee_init):
     """align_transform pixel size overrides scale; ee.Projection should not be consulted."""
-    config = {'project_id': 'test-project', 'ee_project': 'test-project',
-              'crs': 'EPSG:4326', 'scale': 30}
+    config = {'project_id': 'test-project', 'crs': 'EPSG:4326', 'scale': 30}
     align = Affine(0.25, 0, 100.0, 0, -0.5, 200.0)
 
     scale_x, scale_y = _prepare_run_metadata(config, align_transform=align)
@@ -185,8 +183,7 @@ def test_prepare_run_metadata_paths_agree_in_sign(mock_projection, mock_ee_init)
     They disagreed before the fix (align returned a positive scale_y), which is what made
     align_transform runs come out south-up.
     """
-    config = {'project_id': 'test-project', 'ee_project': 'test-project',
-              'crs': 'EPSG:4326', 'scale': 30}
+    config = {'project_id': 'test-project', 'crs': 'EPSG:4326', 'scale': 30}
     mock_proj_obj = MagicMock()
     mock_proj_obj.getInfo.return_value = {'transform': [30.0, 0, 0, 0, 30.0, 0]}
     mock_projection.return_value.atScale.return_value = mock_proj_obj

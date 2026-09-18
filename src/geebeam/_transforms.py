@@ -106,8 +106,8 @@ class EEComputePatch(beam.DoFn):
         self.initialized = False
 
     def _initialize_ee(self):
-        logger.info(f"Initializing Earth Engine for project: {self.config['ee_project']}")
-        ee.Initialize(project=self.config['ee_project'],
+        logger.info(f"Initializing Earth Engine for project: {self.config['project_id']}")
+        ee.Initialize(project=self.config['project_id'],
                       opt_url='https://earthengine-highvolume.googleapis.com')
         self.initialized = True
 
