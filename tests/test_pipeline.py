@@ -255,6 +255,48 @@ def test_run_pipeline_invalid_output_dtype():
             output_dtype='not-a-real-dtype',
         )
 
+@pytest.mark.parametrize('dataflow_project,expected_df', [
+    (None, 'ee-proj'),        # defaults to `project`
+    ('df-proj', 'df-proj'),   # split: Dataflow runs on its own project
+])
+@patch('geebeam._tiff_writer.run_tiff_export')
+@patch('geebeam.pipeline._ee_utils._serialize', return_value='serialized')
+@patch('geebeam.pipeline._ee_utils.build_prepped_image',
+       return_value=(MagicMock(), [['b1']], ['b1']))
+@patch('geebeam.pipeline.sampler._process_sampling_points',
+       return_value=([{'id': 0, 'x': 1.0, 'y': 2.0, 'split': 'full'}], ['full']))
+@patch('ee.Projection')
+@patch('ee.Initialize')
+def test_run_pipeline_splits_dataflow_and_ee_project(
+        mock_ee_init, mock_projection, mock_process_points, mock_build_image,
+        mock_serialize, mock_tiff_export, dataflow_project, expected_df):
+    """`project` drives Earth Engine; `dataflow_project` drives Dataflow's
+    PipelineOptions (falling back to `project` when unset)."""
+    mock_proj_obj = MagicMock()
+    mock_proj_obj.getInfo.return_value = {'transform': [30.0, 0, 0, 0, 30.0, 0]}
+    mock_projection.return_value.atScale.return_value = mock_proj_obj
+
+    run_pipeline(
+        image_list=[MagicMock(spec=ee.Image)],
+        output_path='/tmp/test',
+        project='ee-proj',
+        dataflow_project=dataflow_project,
+        patch_size=4,
+        scale=30.0,
+        sampling_points=MagicMock(),
+        output_type='tiff',
+    )
+
+    # Earth Engine (driver init) always uses `project`.
+    assert mock_ee_init.call_args.kwargs['project'] == 'ee-proj'
+
+    # Dataflow PipelineOptions carry the (possibly separate) dataflow project,
+    # while the config still exposes `project_id` as the EE project.
+    _, kwargs = mock_tiff_export.call_args
+    assert kwargs['pipeline_options'].get_all_options()['project'] == expected_df
+    assert kwargs['config']['project_id'] == 'ee-proj'
+    assert kwargs['config']['dataflow_project'] == expected_df
+
 def test_run_pipeline_rejects_image_collection():
     """An ee.ImageCollection passed as image_list should raise TypeError."""
     with pytest.raises(TypeError, match='ee.ImageCollection'):

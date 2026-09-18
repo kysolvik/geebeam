@@ -96,6 +96,7 @@ def run_pipeline(
         output_path: str,
         project: str,
         patch_size: int,
+        dataflow_project: str | None = None,
         scale: float | None = None,
         crs: str = 'EPSG:4326',
         align_transform: Affine | tuple[float] | list[float] | None = None,
@@ -115,8 +116,13 @@ def run_pipeline(
         sampling_points: Locations to sample from. The position of each point relative
             to the patch is controlled by the ``position`` argument.
         output_path: The path where output will be saved.
-        project: The Google Cloud project ID.
+        project: The Google Cloud project ID used for Earth Engine authorization
+            and EECU quota. Also the default project for Dataflow execution.
         patch_size: The size of the patches to be processed.
+        dataflow_project: The Google Cloud project ID for Dataflow execution
+            (compute/billing). Defaults to ``project`` when not set. Use this to
+            run Dataflow on one project while charging Earth Engine usage to
+            another.
         scale: Export resolution in meters. Required unless ``align_transform`` is provided
             (in which case pixel size comes from the transform and ``scale`` is ignored).
         crs: The coordinate reference system. Defaults to 'EPSG:4326'.
@@ -186,6 +192,7 @@ def run_pipeline(
     # Set up configuration dict to pass along
     config = {
         'project_id': project,
+        'dataflow_project': dataflow_project or project,
         'patch_size': patch_size,
         'scale': scale,
         'crs': crs,
@@ -199,7 +206,7 @@ def run_pipeline(
     if isinstance(beam_options, dict):
         pipeline_options = PipelineOptions(
             **beam_options,
-            project=config['project_id'],
+            project=config['dataflow_project'],
             save_main_session=True,
             )
     elif isinstance(beam_options, list):
@@ -207,12 +214,12 @@ def run_pipeline(
                       ' Ignores command-line beam options.')
         pipeline_options = PipelineOptions(
             beam_options,
-            project=config['project_id'],
+            project=config['dataflow_project'],
             save_main_session=True,
             )
     else:
         pipeline_options = PipelineOptions(
-            project=config['project_id'],
+            project=config['dataflow_project'],
             save_main_session=True,
             )
 
@@ -349,7 +356,10 @@ def sample_and_run_pipeline(
         sampling_region: Region to sample from, polygon or group of polygons.
         n_sample: Number of points to sample.
         output_path: The path where output will be saved.
-        project: The Google Cloud project ID.
+        project: The Google Cloud project ID for Earth Engine authorization/EECU
+            quota (and the default Dataflow project). Pass ``dataflow_project``
+            (via **kwargs) to run Dataflow on a different project; see
+            :meth:`pipeline.run_pipeline`.
         patch_size: The size of the patches to be processed.
         scale: Export resolution in meters. Required unless ``align_transform`` is provided.
         validation_ratio: Fraction of points to mark as validation.
@@ -410,7 +420,10 @@ def grid_and_run_pipeline(
         image_list: A list of ee.Image objects to process.
         sampling_region: Region to sample from, polygon or group of polygons.
         output_path: The path where output will be saved.
-        project: The Google Cloud project ID.
+        project: The Google Cloud project ID for Earth Engine authorization/EECU
+            quota (and the default Dataflow project). Pass ``dataflow_project``
+            (via **kwargs) to run Dataflow on a different project; see
+            :meth:`pipeline.run_pipeline`.
         patch_size: The size of the patches to be processed.
         stride: Number of pixels between consecutive samples. If want full coverage without
             overlaps, stride should be equal to patch_size. If less than patch_size, will
