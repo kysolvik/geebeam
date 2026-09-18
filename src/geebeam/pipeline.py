@@ -56,7 +56,7 @@ def _build_md_feature_dict(record, extra_metadata):
     return md_feature_dict
 
 def _prepare_run_metadata(config, align_transform=None):
-    ee.Initialize(project=config['project_id'])
+    ee.Initialize(project=config['ee_project'])
 
     if align_transform is not None:
         # Pixel size comes from the alignment transform (overrides config['scale'])
@@ -96,6 +96,7 @@ def run_pipeline(
         output_path: str,
         project: str,
         patch_size: int,
+        ee_project: str | None = None,
         scale: float | None = None,
         crs: str = 'EPSG:4326',
         align_transform: Affine | tuple[float] | list[float] | None = None,
@@ -115,8 +116,12 @@ def run_pipeline(
         sampling_points: Locations to sample from. The position of each point relative
             to the patch is controlled by the ``position`` argument.
         output_path: The path where output will be saved.
-        project: The Google Cloud project ID.
+        project: The Google Cloud project ID. Used for Dataflow execution
+            (compute/billing).
         patch_size: The size of the patches to be processed.
+        ee_project: The Google Cloud project ID used for Earth Engine authorization
+            and EECU quota. Defaults to ``project`` when not set. Use this to run
+            Dataflow on one project while charging Earth Engine usage to another.
         scale: Export resolution in meters. Required unless ``align_transform`` is provided
             (in which case pixel size comes from the transform and ``scale`` is ignored).
         crs: The coordinate reference system. Defaults to 'EPSG:4326'.
@@ -186,6 +191,7 @@ def run_pipeline(
     # Set up configuration dict to pass along
     config = {
         'project_id': project,
+        'ee_project': ee_project or project,
         'patch_size': patch_size,
         'scale': scale,
         'crs': crs,
@@ -349,7 +355,9 @@ def sample_and_run_pipeline(
         sampling_region: Region to sample from, polygon or group of polygons.
         n_sample: Number of points to sample.
         output_path: The path where output will be saved.
-        project: The Google Cloud project ID.
+        project: The Google Cloud project ID (Dataflow compute/billing). Pass
+            ``ee_project`` (via **kwargs) to use a different project for Earth
+            Engine authorization/EECU quota; see :meth:`pipeline.run_pipeline`.
         patch_size: The size of the patches to be processed.
         scale: Export resolution in meters. Required unless ``align_transform`` is provided.
         validation_ratio: Fraction of points to mark as validation.
@@ -410,7 +418,9 @@ def grid_and_run_pipeline(
         image_list: A list of ee.Image objects to process.
         sampling_region: Region to sample from, polygon or group of polygons.
         output_path: The path where output will be saved.
-        project: The Google Cloud project ID.
+        project: The Google Cloud project ID (Dataflow compute/billing). Pass
+            ``ee_project`` (via **kwargs) to use a different project for Earth
+            Engine authorization/EECU quota; see :meth:`pipeline.run_pipeline`.
         patch_size: The size of the patches to be processed.
         stride: Number of pixels between consecutive samples. If want full coverage without
             overlaps, stride should be equal to patch_size. If less than patch_size, will
